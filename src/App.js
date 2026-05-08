@@ -89,60 +89,67 @@ const API = {
 
 // ─── STYLE TOKENS ─────────────────────────────────────────────────────────────
 
+const FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+const MONO = "'Courier New', 'Menlo', monospace";
+
 const S = {
   card: {
-    background: "rgba(255,255,255,0.03)",
-    border: "1px solid rgba(0,255,135,0.15)",
-    borderRadius: 6,
+    background: "#111118",
+    border: "1px solid rgba(255,255,255,0.06)",
+    borderRadius: 12,
     padding: 20,
+    boxShadow: "0 1px 4px rgba(0,0,0,0.5)",
   },
   label: {
-    fontSize: 9,
-    letterSpacing: "0.25em",
+    fontSize: 11,
+    letterSpacing: "0.04em",
     textTransform: "uppercase",
-    color: "#00ff87",
-    marginBottom: 12,
+    fontWeight: 600,
+    color: "rgba(255,255,255,0.35)",
+    marginBottom: 14,
+    fontFamily: FONT,
   },
   input: {
     width: "100%",
-    background: "rgba(255,255,255,0.05)",
-    border: "1px solid rgba(255,255,255,0.1)",
-    borderRadius: 3,
-    padding: "8px 10px",
-    color: "#e8eaf0",
-    fontSize: 12,
-    fontFamily: "'Courier New', monospace",
+    background: "#0D0D14",
+    border: "1px solid rgba(255,255,255,0.08)",
+    borderRadius: 8,
+    padding: "9px 12px",
+    color: "#e5e7eb",
+    fontSize: 13,
+    fontFamily: FONT,
     boxSizing: "border-box",
     outline: "none",
   },
   fieldLabel: {
-    fontSize: 9,
-    color: "rgba(255,255,255,0.4)",
-    letterSpacing: "0.1em",
-    marginBottom: 4,
-    textTransform: "uppercase",
-  },
-  btn: (color = "#00ff87", active = true) => ({
-    padding: "10px 20px",
     fontSize: 11,
-    letterSpacing: "0.15em",
-    textTransform: "uppercase",
+    color: "rgba(255,255,255,0.35)",
+    letterSpacing: "0.02em",
+    marginBottom: 5,
+    fontWeight: 500,
+    fontFamily: FONT,
+  },
+  btn: (color = "#16c784", active = true) => ({
+    padding: "8px 16px",
+    fontSize: 12,
+    fontWeight: 600,
+    letterSpacing: "0.01em",
     cursor: active ? "pointer" : "not-allowed",
-    border: `1px solid ${active ? color : "rgba(255,255,255,0.1)"}`,
-    background: active ? `${color}18` : "transparent",
-    color: active ? color : "rgba(255,255,255,0.3)",
-    borderRadius: 3,
-    fontFamily: "'Courier New', monospace",
-    transition: "all 0.2s",
+    border: `1px solid ${active ? color + "40" : "rgba(255,255,255,0.07)"}`,
+    background: active ? color + "18" : "rgba(255,255,255,0.03)",
+    color: active ? color : "rgba(255,255,255,0.25)",
+    borderRadius: 8,
+    fontFamily: FONT,
+    transition: "all 0.15s",
   }),
 };
 
 // ─── TABS ─────────────────────────────────────────────────────────────────────
 
 const TABS = [
-  { id: "analyze", label: "🏇 Analyze" },
-  { id: "flags", label: "🚩 Flags" },
-  { id: "results", label: "📊 Results" },
+  { id: "analyze", label: "Analyze" },
+  { id: "flags", label: "Flags" },
+  { id: "results", label: "Results" },
 ];
 
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
@@ -394,39 +401,37 @@ export default function App() {
   const flagsSection = parseSection(analysis, "Active Flags");
 
   return (
-    <div style={{ minHeight: "100vh", background: "#080c14", color: "#e8eaf0", fontFamily: "'Courier New', monospace", position: "relative" }}>
+    <div style={{ minHeight: "100vh", background: "#09090E", color: "#e5e7eb", fontFamily: FONT, position: "relative" }}>
 
-      {/* BG grid */}
-      <div style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none",
-        backgroundImage: "linear-gradient(rgba(0,255,135,0.025) 1px,transparent 1px),linear-gradient(90deg,rgba(0,255,135,0.025) 1px,transparent 1px)",
-        backgroundSize: "40px 40px" }} />
-      <div style={{ position: "fixed", top: -300, right: -300, width: 700, height: 700, borderRadius: "50%",
-        background: "radial-gradient(circle,rgba(0,255,135,0.05) 0%,transparent 70%)", pointerEvents: "none", zIndex: 0 }} />
+      {/* Subtle bg glow */}
+      <div style={{ position: "fixed", top: -200, right: -200, width: 600, height: 600, borderRadius: "50%",
+        background: "radial-gradient(circle,rgba(22,199,132,0.04) 0%,transparent 65%)", pointerEvents: "none", zIndex: 0 }} />
 
-      <div style={{ position: "relative", zIndex: 1, maxWidth: 1000, margin: "0 auto", padding: "20px 16px" }}>
+      <div style={{ position: "relative", zIndex: 1, maxWidth: 960, margin: "0 auto", padding: "24px 16px" }}>
 
         {/* Header */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12, marginBottom: 24, paddingBottom: 16, borderBottom: "1px solid rgba(0,255,135,0.15)" }}>
-          <div>
-            <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
-              <span style={{ fontSize: 10, letterSpacing: "0.3em", color: "#00ff87" }}>SSM ELITE</span>
-              <span style={{ fontSize: 26, fontWeight: 900, color: "#fff", letterSpacing: "-0.02em" }}>RACE ANALYZER</span>
-              <span style={{ fontSize: 9, letterSpacing: "0.2em", color: "#60efff", background: "rgba(96,239,255,0.1)", border: "1px solid rgba(96,239,255,0.25)", padding: "2px 8px", borderRadius: 2 }}>v3.3</span>
-            </div>
-            <div style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", marginTop: 4, letterSpacing: "0.08em" }}>
-              PPF · VALIDATED SA 5/3/2026 · PCO+TEO 3/3 · HG RULE 3/3
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 16, marginBottom: 28 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <div style={{ width: 40, height: 40, borderRadius: 10, background: "linear-gradient(135deg, #16c784 0%, #0ea563 100%)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 18, color: "#fff", flexShrink: 0, boxShadow: "0 2px 12px rgba(22,199,132,0.3)" }}>S</div>
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 17, fontWeight: 700, color: "#f1f5f9", letterSpacing: "-0.01em" }}>SSM Elite</span>
+                <span style={{ fontSize: 11, color: "#16c784", background: "rgba(22,199,132,0.12)", border: "1px solid rgba(22,199,132,0.25)", padding: "2px 8px", borderRadius: 5, fontWeight: 600 }}>v3.3</span>
+                {calibration && <span style={{ fontSize: 11, color: "#60a5fa", background: "rgba(96,165,250,0.1)", border: "1px solid rgba(96,165,250,0.25)", padding: "2px 8px", borderRadius: 5, fontWeight: 600 }}>Calibrated</span>}
+              </div>
+              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", marginTop: 2 }}>Race Analyzer · SA 5/3/2026 · PCO+TEO 3/3</div>
             </div>
           </div>
           {stats && (
-            <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               {[
-                { label: "WIN RATE", value: `${stats.winRate}%` },
-                { label: "AVG PRICE", value: `$${stats.avgWinPrice}` },
-                { label: "RACES", value: stats.total },
+                { label: "Win Rate", value: `${stats.winRate}%`, c: "#16c784" },
+                { label: "Avg Price", value: `$${stats.avgWinPrice}`, c: "#16c784" },
+                { label: "Races", value: stats.total, c: "rgba(255,255,255,0.5)" },
               ].map(s => (
-                <div key={s.label} style={{ textAlign: "center" }}>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: "#00ff87" }}>{s.value}</div>
-                  <div style={{ fontSize: 8, color: "rgba(255,255,255,0.3)", letterSpacing: "0.15em" }}>{s.label}</div>
+                <div key={s.label} style={{ textAlign: "center", background: "#111118", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 10, padding: "8px 16px" }}>
+                  <div style={{ fontSize: 17, fontWeight: 700, color: s.c, letterSpacing: "-0.01em" }}>{s.value}</div>
+                  <div style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", marginTop: 1, fontWeight: 500 }}>{s.label}</div>
                 </div>
               ))}
             </div>
@@ -434,11 +439,15 @@ export default function App() {
         </div>
 
         {/* Tabs */}
-        <div style={{ display: "flex", gap: 2, marginBottom: 24 }}>
+        <div style={{ display: "flex", background: "#111118", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 12, padding: 4, gap: 2, marginBottom: 24 }}>
           {TABS.map(t => (
             <button key={t.id} onClick={() => setTab(t.id)} style={{
-              ...S.btn(t.id === "analyze" ? "#00ff87" : t.id === "flags" ? "#ff4757" : "#60efff", tab === t.id),
-              borderColor: tab === t.id ? (t.id === "analyze" ? "#00ff87" : t.id === "flags" ? "#ff4757" : "#60efff") : "rgba(255,255,255,0.08)",
+              flex: 1, padding: "9px 16px", fontSize: 13, fontWeight: 600, fontFamily: FONT,
+              border: "none", borderRadius: 9, cursor: "pointer",
+              background: tab === t.id ? "#1C1C26" : "transparent",
+              color: tab === t.id ? "#f1f5f9" : "rgba(255,255,255,0.35)",
+              boxShadow: tab === t.id ? "0 1px 3px rgba(0,0,0,0.4)" : "none",
+              transition: "all 0.15s",
             }}>{t.label}</button>
           ))}
         </div>
@@ -472,14 +481,14 @@ export default function App() {
                     <div>
                       <div style={S.fieldLabel}>Surface</div>
                       <select value={raceInfo.surface} onChange={e => setRaceInfo(p => ({ ...p, surface: e.target.value }))}
-                        style={{ ...S.input, background: "#0d1420" }}>
+                        style={{ ...S.input, background: "#0D0D14" }}>
                         {SURFACES.map(s => <option key={s}>{s}</option>)}
                       </select>
                     </div>
                     <div>
                       <div style={S.fieldLabel}>Race Type</div>
                       <select value={raceInfo.raceType} onChange={e => setRaceInfo(p => ({ ...p, raceType: e.target.value }))}
-                        style={{ ...S.input, background: "#0d1420" }}>
+                        style={{ ...S.input, background: "#0D0D14" }}>
                         {RACE_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                       </select>
                     </div>
@@ -488,8 +497,8 @@ export default function App() {
 
                 {/* Active flags preview */}
                 {flags.length > 0 && (
-                  <div style={{ ...S.card, borderColor: "rgba(255,71,87,0.2)", background: "rgba(255,71,87,0.04)" }}>
-                    <div style={{ ...S.label, color: "#ff4757" }}>▸ {flags.length} Active Bounce-Back Flags Loaded</div>
+                  <div style={{ ...S.card, borderColor: "rgba(248,113,113,0.2)", background: "rgba(248,113,113,0.03)" }}>
+                    <div style={{ ...S.label, color: "#f87171" }}>{flags.length} Active Bounce-Back Flags</div>
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                       {flags.map(f => (
                         <div key={f.id} style={{
@@ -517,7 +526,7 @@ export default function App() {
                       <button
                         onClick={() => fileInputRef.current?.click()}
                         disabled={uploadLoading}
-                        style={{ ...S.btn("#60efff", !uploadLoading), padding: "6px 14px", fontSize: 10 }}
+                        style={{ ...S.btn("#60a5fa", !uploadLoading), padding: "7px 14px", fontSize: 12 }}
                       >
                         ↑ Upload Data Sheet
                       </button>
@@ -551,26 +560,25 @@ export default function App() {
                 )}
 
                 <button onClick={runAnalysis} style={{
-                  padding: "16px", fontSize: 13, letterSpacing: "0.2em", textTransform: "uppercase",
-                  cursor: "pointer", border: "2px solid #00ff87", background: "rgba(0,255,135,0.1)",
-                  color: "#00ff87", borderRadius: 4, fontFamily: "'Courier New', monospace", fontWeight: 700,
+                  padding: "14px 24px", fontSize: 14, fontWeight: 700, letterSpacing: "0.01em",
+                  cursor: "pointer", border: "none",
+                  background: "linear-gradient(135deg, #16c784 0%, #0ea563 100%)",
+                  color: "#fff", borderRadius: 10, fontFamily: FONT,
+                  boxShadow: "0 4px 18px rgba(22,199,132,0.28)",
                 }}>
-                  ▶ RUN FULL SSM ELITE PIPELINE
+                  ▶ Run SSM Elite Analysis
                 </button>
               </>
             ) : (
               <>
                 {/* Loading */}
                 {loading && (
-                  <div style={{ ...S.card, textAlign: "center", padding: 48 }}>
-                    <div style={{ fontSize: 11, color: "#00ff87", letterSpacing: "0.2em", marginBottom: 8 }}>
-                      ⟳ RUNNING SSM ELITE v3.3
-                    </div>
-                    <div style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", letterSpacing: "0.1em", marginBottom: 20 }}>
-                      RTD → TMER → SMD → THM → PP → TJI → ARI → FPAD
-                    </div>
-                    <div style={{ height: 2, background: "rgba(0,255,135,0.1)", borderRadius: 2, overflow: "hidden" }}>
-                      <div style={{ height: "100%", width: "40%", background: "#00ff87", borderRadius: 2,
+                  <div style={{ ...S.card, textAlign: "center", padding: 52 }}>
+                    <div style={{ width: 44, height: 44, borderRadius: 12, background: "rgba(22,199,132,0.12)", border: "1px solid rgba(22,199,132,0.2)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 18px", fontSize: 22 }}>⚡</div>
+                    <div style={{ fontSize: 15, fontWeight: 600, color: "#f1f5f9", marginBottom: 6 }}>Running SSM Elite v3.3</div>
+                    <div style={{ fontSize: 12, color: "rgba(255,255,255,0.3)", marginBottom: 24 }}>RTD → TMER → SMD → THM → PP → TJI → ARI → FPAD</div>
+                    <div style={{ height: 3, background: "rgba(255,255,255,0.06)", borderRadius: 3, overflow: "hidden", maxWidth: 260, margin: "0 auto" }}>
+                      <div style={{ height: "100%", width: "45%", background: "linear-gradient(90deg, #16c784, #60a5fa)", borderRadius: 3,
                         animation: "slide 1.4s ease-in-out infinite" }} />
                     </div>
                     <style>{`@keyframes slide{0%{transform:translateX(-150%)}100%{transform:translateX(400%)}}`}</style>
@@ -584,13 +592,13 @@ export default function App() {
                     {(winLine || placeLine || showLine) && (
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: 12 }}>
                         {[
-                          { label: "🥇 WIN", value: winLine, c: "#00ff87" },
-                          { label: "🥈 PLACE", value: placeLine, c: "#60efff" },
-                          { label: "🥉 SHOW", value: showLine, c: "#f7b731" },
+                          { label: "WIN", value: winLine, c: "#16c784", icon: "🥇" },
+                          { label: "PLACE", value: placeLine, c: "#60a5fa", icon: "🥈" },
+                          { label: "SHOW", value: showLine, c: "#f59e0b", icon: "🥉" },
                         ].filter(x => x.value).map(x => (
-                          <div key={x.label} style={{ background: `${x.c}0d`, border: `1px solid ${x.c}30`, borderLeft: `3px solid ${x.c}`, borderRadius: 4, padding: 16 }}>
-                            <div style={{ fontSize: 9, letterSpacing: "0.2em", color: x.c, marginBottom: 8 }}>{x.label}</div>
-                            <div style={{ fontSize: 12, color: "#fff", lineHeight: 1.5 }}>{x.value}</div>
+                          <div key={x.label} style={{ background: "#111118", border: `1px solid rgba(255,255,255,0.06)`, borderTop: `2px solid ${x.c}`, borderRadius: 12, padding: "16px 18px", boxShadow: `0 0 24px ${x.c}0a` }}>
+                            <div style={{ fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.35)", marginBottom: 8 }}>{x.icon} {x.label}</div>
+                            <div style={{ fontSize: 13, color: "#f1f5f9", lineHeight: 1.5, fontWeight: 500 }}>{x.value}</div>
                           </div>
                         ))}
                       </div>
@@ -598,9 +606,9 @@ export default function App() {
 
                     {/* Ticket */}
                     {ticketSection && (
-                      <div style={{ ...S.card, borderColor: "rgba(255,107,129,0.2)", background: "rgba(255,107,129,0.05)" }}>
-                        <div style={{ ...S.label, color: "#ff6b81" }}>▸ Ticket Structure</div>
-                        <pre style={{ fontSize: 12, color: "#e8eaf0", lineHeight: 1.7, whiteSpace: "pre-wrap", margin: 0, fontFamily: "'Courier New', monospace" }}>
+                      <div style={{ ...S.card, borderColor: "rgba(251,146,60,0.2)", background: "rgba(251,146,60,0.03)" }}>
+                        <div style={{ ...S.label, color: "#fb923c" }}>Ticket Structure</div>
+                        <pre style={{ fontSize: 12, color: "#e5e7eb", lineHeight: 1.8, whiteSpace: "pre-wrap", margin: 0, fontFamily: MONO }}>
                           {ticketSection}
                         </pre>
                       </div>
@@ -608,8 +616,8 @@ export default function App() {
 
                     {/* Full analysis */}
                     <div style={S.card}>
-                      <div style={{ ...S.label, color: "rgba(255,255,255,0.4)" }}>▸ Full Pipeline Analysis</div>
-                      <div style={{ fontSize: 11.5, lineHeight: 1.8, whiteSpace: "pre-wrap", fontFamily: "'Courier New', monospace" }}>
+                      <div style={S.label}>Full Pipeline Analysis</div>
+                      <div style={{ fontSize: 12, lineHeight: 1.85, whiteSpace: "pre-wrap", fontFamily: MONO }}>
                         {analysis.split("\n").map((line, i) => {
                           const isH = line.startsWith("##");
                           const isWin = /^WIN:|🥇/.test(line);
@@ -618,11 +626,12 @@ export default function App() {
                           const isAlert = /alert|confirmed|validated/i.test(line);
                           return (
                             <div key={i} style={{
-                              color: isH ? "#00ff87" : isWin ? "#fff" : isKill ? "#ff4757" : isImmune ? "#ff6b81" : isAlert ? "#f7b731" : "#c8ccd8",
+                              color: isH ? "#16c784" : isWin ? "#f1f5f9" : isKill ? "#f87171" : isImmune ? "#fb923c" : isAlert ? "#f59e0b" : "#cbd5e1",
                               fontWeight: isH ? 700 : "normal",
-                              borderBottom: isH ? "1px solid rgba(0,255,135,0.12)" : "none",
-                              paddingBottom: isH ? 4 : 0,
-                              marginTop: isH ? 12 : 0,
+                              borderBottom: isH ? "1px solid rgba(255,255,255,0.06)" : "none",
+                              paddingBottom: isH ? 6 : 0,
+                              marginTop: isH ? 14 : 0,
+                              fontSize: isH ? 12.5 : 12,
                             }}>{line || "\u00a0"}</div>
                           );
                         })}
@@ -641,9 +650,9 @@ export default function App() {
 
                     {/* Action row */}
                     <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                      <button onClick={() => { setShowInput(true); setAnalysis(""); }} style={S.btn()}>← New Race</button>
-                      <button onClick={() => navigator.clipboard?.writeText(analysis)} style={S.btn("#60efff")}>Copy Analysis</button>
-                      <button onClick={() => setLogOpen(true)} style={S.btn("#f7b731")}>+ Log Result</button>
+                      <button onClick={() => { setShowInput(true); setAnalysis(""); }} style={S.btn("#16c784")}>← New Race</button>
+                      <button onClick={() => navigator.clipboard?.writeText(analysis)} style={S.btn("#60a5fa")}>Copy Analysis</button>
+                      <button onClick={() => setLogOpen(true)} style={S.btn("#f59e0b")}>+ Log Result</button>
                     </div>
                   </>
                 )}
@@ -673,7 +682,7 @@ export default function App() {
                 <div>
                   <div style={S.fieldLabel}>Flag Type</div>
                   <select value={newFlag.flag} onChange={e => setNewFlag(p => ({ ...p, flag: e.target.value }))}
-                    style={{ ...S.input, background: "#0d1420" }}>
+                    style={{ ...S.input, background: "#0D0D14" }}>
                     {["RED", "YELLOW", "GREEN", "WIDE WIN"].map(f => <option key={f}>{f}</option>)}
                   </select>
                 </div>
@@ -720,16 +729,16 @@ export default function App() {
             {stats && (
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(140px,1fr))", gap: 12 }}>
                 {[
-                  { label: "Win Rate", value: `${stats.winRate}%`, c: "#00ff87" },
-                  { label: "Avg Win Price", value: `$${stats.avgWinPrice}`, c: "#00ff87" },
-                  { label: "PCO+TEO", value: stats.pcoTeoRecord, c: "#ff6b81" },
-                  { label: "Hg Gate Rule", value: stats.hgRuleRecord, c: "#60efff" },
-                  { label: "Total Races", value: stats.total, c: "rgba(255,255,255,0.6)" },
-                  { label: "Wins", value: stats.wins, c: "#00ff87" },
+                  { label: "Win Rate", value: `${stats.winRate}%`, c: "#16c784" },
+                  { label: "Avg Win Price", value: `$${stats.avgWinPrice}`, c: "#16c784" },
+                  { label: "PCO+TEO", value: stats.pcoTeoRecord, c: "#f87171" },
+                  { label: "Hg Gate Rule", value: stats.hgRuleRecord, c: "#60a5fa" },
+                  { label: "Total Races", value: stats.total, c: "rgba(255,255,255,0.5)" },
+                  { label: "Wins", value: stats.wins, c: "#16c784" },
                 ].map(s => (
-                  <div key={s.label} style={{ ...S.card, textAlign: "center", padding: 16 }}>
-                    <div style={{ fontSize: 22, fontWeight: 900, color: s.c, marginBottom: 4 }}>{s.value}</div>
-                    <div style={{ fontSize: 9, color: "rgba(255,255,255,0.3)", letterSpacing: "0.15em", textTransform: "uppercase" }}>{s.label}</div>
+                  <div key={s.label} style={{ ...S.card, textAlign: "center", padding: "18px 16px" }}>
+                    <div style={{ fontSize: 24, fontWeight: 700, color: s.c, marginBottom: 5, letterSpacing: "-0.02em" }}>{s.value}</div>
+                    <div style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", fontWeight: 500 }}>{s.label}</div>
                   </div>
                 ))}
               </div>
@@ -741,8 +750,8 @@ export default function App() {
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <div style={S.label}>▸ Race Log</div>
                   {calibration && (
-                    <span style={{ fontSize: 9, background: "rgba(0,255,135,0.15)", border: "1px solid rgba(0,255,135,0.4)", color: "#00ff87", borderRadius: 3, padding: "2px 8px", letterSpacing: "0.1em" }}>
-                      CALIBRATED · {calibration.races} races
+                    <span style={{ fontSize: 11, background: "rgba(22,199,132,0.1)", border: "1px solid rgba(22,199,132,0.25)", color: "#16c784", borderRadius: 6, padding: "3px 10px", fontWeight: 600 }}>
+                      Calibrated · {calibration.races} races
                     </span>
                   )}
                 </div>
@@ -752,17 +761,17 @@ export default function App() {
                       Clear Cal
                     </button>
                   )}
-                  <button onClick={runLearn} disabled={learnLoading || results.length === 0} style={{ ...S.btn("#00ff87", !learnLoading && results.length > 0), padding: "6px 14px", fontSize: 10 }}>
+                  <button onClick={runLearn} disabled={learnLoading || results.length === 0} style={{ ...S.btn("#16c784", !learnLoading && results.length > 0) }}>
                     {learnLoading ? "⟳ Analyzing..." : "⚡ Review & Learn"}
                   </button>
-                  <button onClick={() => setLogOpen(o => !o)} style={{ ...S.btn("#60efff"), padding: "6px 14px", fontSize: 10 }}>
+                  <button onClick={() => setLogOpen(o => !o)} style={S.btn("#60a5fa")}>
                     + Log Result
                   </button>
                 </div>
               </div>
 
               {logOpen && (
-                <div style={{ background: "rgba(96,239,255,0.05)", border: "1px solid rgba(96,239,255,0.2)", borderRadius: 4, padding: 16, marginBottom: 16 }}>
+                <div style={{ background: "rgba(96,165,250,0.05)", border: "1px solid rgba(96,165,250,0.15)", borderRadius: 10, padding: 16, marginBottom: 16 }}>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(140px,1fr))", gap: 10, marginBottom: 12 }}>
                     {[
                       { key: "race", label: "Race", ph: "R9" },
@@ -780,19 +789,19 @@ export default function App() {
                     <div>
                       <div style={S.fieldLabel}>Result</div>
                       <select value={newResult.result} onChange={e => setNewResult(p => ({ ...p, result: e.target.value }))}
-                        style={{ ...S.input, background: "#0d1420" }}>
+                        style={{ ...S.input, background: "#0D0D14" }}>
                         <option>WON</option><option>BOARD</option><option>MISS</option>
                       </select>
                     </div>
                     <div>
                       <div style={S.fieldLabel}>Grade</div>
                       <select value={newResult.grade} onChange={e => setNewResult(p => ({ ...p, grade: e.target.value }))}
-                        style={{ ...S.input, background: "#0d1420" }}>
+                        style={{ ...S.input, background: "#0D0D14" }}>
                         {["A+","A","B+","B","C+","C","D"].map(g => <option key={g}>{g}</option>)}
                       </select>
                     </div>
                   </div>
-                  <button onClick={addResult} style={{ ...S.btn("#60efff"), padding: "10px 24px" }}>Save Result</button>
+                  <button onClick={addResult} style={{ ...S.btn("#60a5fa"), padding: "10px 24px" }}>Save Result</button>
                 </div>
               )}
 
@@ -804,8 +813,8 @@ export default function App() {
                   const gc = GRADE_COLORS[r.grade] || "rgba(255,255,255,0.5)";
                   return (
                     <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap",
-                      background: `${rc}08`, border: `1px solid ${rc}20`, borderLeft: `3px solid ${rc}`,
-                      borderRadius: 4, padding: "10px 14px" }}>
+                      background: "#111118", border: `1px solid rgba(255,255,255,0.06)`, borderLeft: `3px solid ${rc}`,
+                      borderRadius: 10, padding: "12px 16px" }}>
                       <div style={{ fontSize: 9, color: "rgba(255,255,255,0.3)", minWidth: 70 }}>{r.date}</div>
                       <div style={{ fontSize: 9, color: "rgba(255,255,255,0.3)", minWidth: 30 }}>{r.track} {r.race}</div>
                       <div style={{ flex: 1, fontSize: 12, color: "#fff", fontWeight: 600 }}>{r.pick}</div>
@@ -825,7 +834,7 @@ export default function App() {
         )}
 
         {/* Footer */}
-        <div style={{ marginTop: 32, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.05)",
+        <div style={{ marginTop: 36, paddingTop: 16, borderTop: "1px solid rgba(255,255,255,0.05)",
           display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
           <div style={{ fontSize: 9, color: "rgba(255,255,255,0.15)", letterSpacing: "0.12em" }}>SSM ELITE PPF v3.3 · SA 5/3/2026</div>
           <div style={{ fontSize: 9, color: "rgba(255,71,87,0.4)", letterSpacing: "0.1em" }}>FOR ENTERTAINMENT ONLY · GAMBLE RESPONSIBLY</div>
