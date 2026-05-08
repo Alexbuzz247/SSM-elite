@@ -209,7 +209,7 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "API key not configured. Add ANTHROPIC_API_KEY to Vercel environment variables." });
   }
 
-  const { raceInfo, horsesText, flags } = req.body;
+  const { raceInfo, horsesText, flags, calibration } = req.body;
 
   if (!horsesText?.trim()) {
     return res.status(400).json({ error: "No horse data provided" });
@@ -229,7 +229,11 @@ ${flags || "None loaded"}
 HORSES / PP DATA:
 ${horsesText}
 
-Run the complete SSM Elite v3.3 pipeline starting with Step 0 surface verification. Be thorough. Use the exact output format specified.`;
+Run the complete SSM Elite v3.3 pipeline starting with Step 0 surface verification. Be thorough. Use the exact output format specified.${
+  calibration?.adjustments?.length > 0
+    ? `\n\nACTIVE CALIBRATIONS (learned from ${calibration.races} races on ${calibration.appliedAt}):\n${calibration.adjustments.map(a => `- ${a.raceType}: ${a.module} weight = ${a.suggestedWeight} (base was ${a.currentWeight}) — ${a.reason}`).join("\n")}\nApply these weight overrides. They take precedence over the base module weights in your system prompt.`
+    : ""
+}`;
 
   try {
     const response = await fetch("https://api.anthropic.com/v1/messages", {

@@ -165,6 +165,11 @@ export default function App() {
   const [newFlag, setNewFlag] = useState({ horse: "", race: "", trip: "", flag: "RED", bonus: 8 });
   const [newResult, setNewResult] = useState({ pick: "", result: "WON", price: "", grade: "A", notes: "", race: "", date: "" });
   const [logOpen, setLogOpen] = useState(false);
+  const [calibration, setCalibration] = useState(() => { try { return JSON.parse(localStorage.getItem("ssm_calibration") || "null"); } catch { return null; } });
+  const [learnOpen, setLearnOpen] = useState(false);
+  const [learnLoading, setLearnLoading] = useState(false);
+  const [learnData, setLearnData] = useState(null);
+  const [learnSelected, setLearnSelected] = useState([]);
   const [uploadLoading, setUploadLoading] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const [uploadStatus, setUploadStatus] = useState("");
@@ -311,7 +316,7 @@ export default function App() {
     if (!horsesText.trim()) { setError("Please enter horse/PP data."); return; }
     setLoading(true); setError(""); setAnalysis(""); setShowInput(false);
     try {
-      const { analysis: text } = await API.analyze({ raceInfo, horsesText, flags: flagsText });
+      const { analysis: text } = await API.analyze({ raceInfo, horsesText, flags: flagsText, calibration });
       setAnalysis(text);
     } catch (e) {
       setError(e.message);
@@ -319,6 +324,40 @@ export default function App() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const runLearn = async () => {
+    setLearnLoading(true);
+    setLearnData(null);
+    try {
+      const r = await fetch("/api/learn", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ results }),
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || "Learn failed");
+      setLearnData(data.calibration);
+      setLearnSelected((data.calibration.adjustments || []).map((_, i) => i));
+      setLearnOpen(true);
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setLearnLoading(false);
+    }
+  };
+
+  const applyCalibration = () => {
+    const selected = (learnData.adjustments || []).filter((_, i) => learnSelected.includes(i));
+    const cal = { appliedAt: new Date().toLocaleDateString(), races: results.length, summary: learnData.summary, adjustments: selected };
+    setCalibration(cal);
+    localStorage.setItem("ssm_calibration", JSON.stringify(cal));
+    setLearnOpen(false);
+  };
+
+  const clearCalibration = () => {
+    setCalibration(null);
+    localStorage.removeItem("ssm_calibration");
   };
 
   const addFlag = async () => {
@@ -699,10 +738,27 @@ export default function App() {
             {/* Results log */}
             <div style={S.card}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-                <div style={S.label}>▸ Race Log</div>
-                <button onClick={() => setLogOpen(o => !o)} style={{ ...S.btn("#60efff"), padding: "6px 14px", fontSize: 10 }}>
-                  + Log Result
-                </button>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={S.label}>▸ Race Log</div>
+                  {calibration && (
+                    <span style={{ fontSize: 9, background: "rgba(0,255,135,0.15)", border: "1px solid rgba(0,255,135,0.4)", color: "#00ff87", borderRadius: 3, padding: "2px 8px", letterSpacing: "0.1em" }}>
+                      CALIBRATED · {calibration.races} races
+                    </span>
+                  )}
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  {calibration && (
+                    <button onClick={clearCalibration} style={{ ...S.btn("rgba(255,71,87,0.6)"), padding: "6px 10px", fontSize: 9 }}>
+                      Clear Cal
+                    </button>
+                  )}
+                  <button onClick={runLearn} disabled={learnLoading || results.length === 0} style={{ ...S.btn("#00ff87", !learnLoading && results.length > 0), padding: "6px 14px", fontSize: 10 }}>
+                    {learnLoading ? "⟳ Analyzing..." : "⚡ Review & Learn"}
+                  </button>
+                  <button onClick={() => setLogOpen(o => !o)} style={{ ...S.btn("#60efff"), padding: "6px 14px", fontSize: 10 }}>
+                    + Log Result
+                  </button>
+                </div>
               </div>
 
               {logOpen && (
@@ -775,6 +831,88 @@ export default function App() {
           <div style={{ fontSize: 9, color: "rgba(255,71,87,0.4)", letterSpacing: "0.1em" }}>FOR ENTERTAINMENT ONLY · GAMBLE RESPONSIBLY</div>
         </div>
       </div>
+
+      {/* Learn Modal */}
+      {learnOpen && learnData && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+          <div style={{ background: "#0a0a0f", border: "1px solid rgba(0,255,135,0.3)", borderRadius: 8, width: "100%", maxWidth: 640, maxHeight: "90vh", overflowY: "auto", padding: 24 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <div style={{ fontSize: 13, fontWeight: 900, color: "#00ff87", letterSpacing: "0.15em" }}>⚡ PATTERN ANALYSIS</div>
+              <button onClick={() => setLearnOpen(false)} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.4)", cursor: "pointer", fontSize: 18 }}>✕</button>
+            </div>
+
+            {/* Summary */}
+            <div style={{ background: "rgba(0,255,135,0.05)", border: "1px solid rgba(0,255,135,0.2)", borderRadius: 6, padding: 14, marginBottom: 16, fontSize: 12, color: "rgba(255,255,255,0.8)", lineHeight: 1.6 }}>
+              <span style={{ color: "#00ff87", fontWeight: 700 }}>{learnData.winRate} wins · </span>{learnData.summary}
+            </div>
+
+            {/* Patterns */}
+            {learnData.patterns?.length > 0 && (
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 9, color: "rgba(255,255,255,0.3)", letterSpacing: "0.15em", marginBottom: 10 }}>SIGNAL PATTERNS</div>
+                {learnData.patterns.map((p, i) => (
+                  <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                    <div>
+                      <span style={{ color: "#60efff", fontWeight: 700, fontSize: 11 }}>{p.signal}</span>
+                      <span style={{ color: "rgba(255,255,255,0.6)", fontSize: 11 }}> — {p.finding}</span>
+                    </div>
+                    <span style={{ fontSize: 9, padding: "2px 8px", borderRadius: 3, background: p.confidence === "HIGH" ? "rgba(0,255,135,0.15)" : p.confidence === "MEDIUM" ? "rgba(255,165,0,0.15)" : "rgba(255,255,255,0.08)", color: p.confidence === "HIGH" ? "#00ff87" : p.confidence === "MEDIUM" ? "#ffaa00" : "rgba(255,255,255,0.4)", flexShrink: 0, marginLeft: 8 }}>
+                      {p.confidence}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Weight Adjustments */}
+            {learnData.adjustments?.length > 0 && (
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 9, color: "rgba(255,255,255,0.3)", letterSpacing: "0.15em", marginBottom: 10 }}>SUGGESTED WEIGHT ADJUSTMENTS — select to apply</div>
+                {learnData.adjustments.map((a, i) => {
+                  const selected = learnSelected.includes(i);
+                  const up = a.suggestedWeight > a.currentWeight;
+                  return (
+                    <div key={i} onClick={() => setLearnSelected(s => s.includes(i) ? s.filter(x => x !== i) : [...s, i])}
+                      style={{ cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", marginBottom: 8, borderRadius: 6, border: `1px solid ${selected ? "rgba(0,255,135,0.4)" : "rgba(255,255,255,0.08)"}`, background: selected ? "rgba(0,255,135,0.06)" : "rgba(255,255,255,0.02)" }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 11, color: "#60efff", fontWeight: 700 }}>{a.raceType} · {a.module}</div>
+                        <div style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", marginTop: 2 }}>{a.reason}</div>
+                      </div>
+                      <div style={{ textAlign: "right", marginLeft: 12, flexShrink: 0 }}>
+                        <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 11 }}>{a.currentWeight} → </span>
+                        <span style={{ color: up ? "#00ff87" : "#ff4757", fontWeight: 700, fontSize: 13 }}>{a.suggestedWeight}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* New Rules */}
+            {learnData.newRules?.length > 0 && (
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ fontSize: 9, color: "rgba(255,255,255,0.3)", letterSpacing: "0.15em", marginBottom: 10 }}>RULE REINFORCEMENTS</div>
+                {learnData.newRules.map((r, i) => (
+                  <div key={i} style={{ padding: "8px 12px", marginBottom: 6, borderRadius: 4, background: "rgba(96,239,255,0.05)", border: "1px solid rgba(96,239,255,0.15)" }}>
+                    <div style={{ fontSize: 11, color: "#60efff" }}>{r.rule}</div>
+                    <div style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", marginTop: 2 }}>{r.reason}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Apply button */}
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={applyCalibration} disabled={learnSelected.length === 0} style={{ ...S.btn("#00ff87", learnSelected.length > 0), flex: 1, padding: "10px 0", fontSize: 11 }}>
+                Apply {learnSelected.length} Calibration{learnSelected.length !== 1 ? "s" : ""} to Formula
+              </button>
+              <button onClick={() => setLearnOpen(false)} style={{ ...S.btn("rgba(255,255,255,0.2)"), padding: "10px 20px", fontSize: 11 }}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
