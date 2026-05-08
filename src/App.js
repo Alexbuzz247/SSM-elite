@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf";
+pdfjsLib.GlobalWorkerOptions.workerSrc = `${process.env.PUBLIC_URL}/pdf.worker.min.js`;
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
 
@@ -31,12 +33,20 @@ const RACE_TYPES = [
 
 const API = {
   upload: async (fileData, fileType) => {
-    const r = await fetch("/api/upload", {
+    const r = await fetch("/api/parse", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ fileData, fileType }),
     });
-    if (!r.ok) throw new Error((await r.json()).error || "Upload failed");
+    if (!r.ok) {
+      const text = await r.text();
+      let msg = `Upload failed (${r.status})`;
+      try {
+        const json = JSON.parse(text);
+        msg = json.error || json.message || msg;
+      } catch {}
+      throw new Error(msg);
+    }
     return r.json();
   },
   analyze: async (body) => {
@@ -157,6 +167,7 @@ export default function App() {
   const [logOpen, setLogOpen] = useState(false);
   const [uploadLoading, setUploadLoading] = useState(false);
   const [uploadError, setUploadError] = useState("");
+  const [uploadStatus, setUploadStatus] = useState("");
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -196,37 +207,87 @@ export default function App() {
     return { updatedRaceInfo, horsesData };
   }, []);
 
+  const pdfPageToBase64 = useCallback(async (page) => {
+    const viewport = page.getViewport({ scale: 1.5 });
+    const canvas = document.createElement("canvas");
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    const ctx = canvas.getContext("2d");
+    await page.render({ canvasContext: ctx, viewport }).promise;
+    return canvas.toDataURL("image/jpeg", 0.82).split(",")[1];
+  }, []);
+
+  const compressImage = useCallback((file) => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        const MAX_W = 1600;
+        let { width: w, height: h } = img;
+        if (w > MAX_W) { h = Math.round(h * MAX_W / w); w = MAX_W; }
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL("image/jpeg", 0.85).split(",")[1]);
+      };
+      img.onerror = reject;
+      img.src = url;
+    });
+  }, []);
+
   const uploadDRF = useCallback(async (file) => {
-    const MAX_MB = 8;
-    if (file.size > MAX_MB * 1024 * 1024) {
-      setUploadError(`File too large (max ${MAX_MB}MB). Try a screenshot or smaller PDF.`);
-      return;
-    }
     setUploadLoading(true);
     setUploadError("");
+    setUploadStatus("");
+
     try {
-      const fileData = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result.split(",")[1]);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
+      if (file.type === "application/pdf") {
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        const totalPages = pdf.numPages;
+        const allParsed = [];
 
-      const { parsed } = await API.upload(fileData, file.type);
-      const { updatedRaceInfo, horsesData } = parseUploadResult(parsed);
+        for (let i = 1; i <= totalPages; i++) {
+          setUploadStatus(`Parsing page ${i} / ${totalPages}...`);
+          const page = await pdf.getPage(i);
+          const base64 = await pdfPageToBase64(page);
+          const { parsed } = await API.upload(base64, "image/jpeg");
+          if (parsed.trim()) allParsed.push(parsed.trim());
+        }
 
-      setRaceInfo(prev => ({
-        ...prev,
-        ...Object.fromEntries(Object.entries(updatedRaceInfo).filter(([, v]) => v)),
-      }));
-      setHorsesText(horsesData);
+        const combined = allParsed.join("\n\n");
+        const { updatedRaceInfo, horsesData } = parseUploadResult(combined);
+        setRaceInfo(prev => ({
+          ...prev,
+          ...Object.fromEntries(Object.entries(updatedRaceInfo).filter(([, v]) => v)),
+        }));
+        setHorsesText(horsesData);
+      } else {
+        if (file.size > 20 * 1024 * 1024) {
+          setUploadError("File too large (max 20MB).");
+          return;
+        }
+        setUploadStatus("Compressing...");
+        const fileData = await compressImage(file);
+        setUploadStatus("Parsing...");
+        const { parsed } = await API.upload(fileData, "image/jpeg");
+        const { updatedRaceInfo, horsesData } = parseUploadResult(parsed);
+        setRaceInfo(prev => ({
+          ...prev,
+          ...Object.fromEntries(Object.entries(updatedRaceInfo).filter(([, v]) => v)),
+        }));
+        setHorsesText(horsesData);
+      }
     } catch (e) {
       setUploadError(e.message);
     } finally {
       setUploadLoading(false);
+      setUploadStatus("");
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
-  }, [parseUploadResult]);
+  }, [parseUploadResult, pdfPageToBase64, compressImage]);
 
   const runAnalysis = async () => {
     if (!horsesText.trim()) { setError("Please enter horse/PP data."); return; }
@@ -392,14 +453,16 @@ export default function App() {
                     <div style={S.label}>▸ Horse / PP Data</div>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       {uploadLoading && (
-                        <span style={{ fontSize: 10, color: "#60efff", letterSpacing: "0.1em" }}>⟳ PARSING DRF...</span>
+                        <span style={{ fontSize: 10, color: "#60efff", letterSpacing: "0.1em" }}>
+                          ⟳ {uploadStatus || "PARSING..."}
+                        </span>
                       )}
                       <button
                         onClick={() => fileInputRef.current?.click()}
                         disabled={uploadLoading}
                         style={{ ...S.btn("#60efff", !uploadLoading), padding: "6px 14px", fontSize: 10 }}
                       >
-                        ↑ Upload DRF Sheet
+                        ↑ Upload Data Sheet
                       </button>
                       <input
                         ref={fileInputRef}
@@ -411,7 +474,7 @@ export default function App() {
                     </div>
                   </div>
                   <div style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", marginBottom: 10, lineHeight: 1.5 }}>
-                    Upload a DRF PDF or screenshot to auto-fill, or paste raw data below. More data = better analysis.
+                    Upload a data sheet or screenshot to auto-fill, or paste raw data below. More data = better analysis.
                   </div>
                   {uploadError && (
                     <div style={{ background: "rgba(255,71,87,0.1)", border: "1px solid rgba(255,71,87,0.3)", borderRadius: 4, padding: "8px 12px", fontSize: 11, color: "#ff4757", marginBottom: 10 }}>
