@@ -744,8 +744,7 @@ export default function App() {
                       )}>
                         ↑ Upload Data Sheet
                         <input ref={fileInputRef} type="file" accept=".pdf,image/*,.txt,.csv" className="hidden" multiple
-                          disabled={uploadLoading}
-                          onChange={e => { if (e.target.files?.length) uploadDRF(e.target.files); }} />
+                          onChange={e => { if (!uploadLoading && e.target.files?.length) uploadDRF(e.target.files); }} />
                       </label>
                     </div>
                   </div>
@@ -1064,8 +1063,7 @@ export default function App() {
                     )}>
                       {resultUploadLoading ? `⟳ ${resultUploadStatus || "Processing…"}` : "↑ Upload Result Image"}
                       <input ref={resultFileInputRef} type="file" accept="image/*" multiple className="hidden"
-                        disabled={resultUploadLoading}
-                        onChange={e => { if (e.target.files?.length) uploadResultFiles(e.target.files); }} />
+                        onChange={e => { if (!resultUploadLoading && e.target.files?.length) uploadResultFiles(e.target.files); }} />
                     </label>
                     <span className="text-[10px] text-slate-600">JPG, PNG, multiple OK</span>
                   </div>
