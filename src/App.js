@@ -177,6 +177,13 @@ export default function App() {
   const [learnLoading, setLearnLoading] = useState(false);
   const [learnData, setLearnData] = useState(null);
   const [learnSelected, setLearnSelected] = useState([]);
+  const [resultsSubTab, setResultsSubTab] = useState("log");
+  const [resultUploadLoading, setResultUploadLoading] = useState(false);
+  const [resultUploadError, setResultUploadError] = useState("");
+  const [resultUploadStatus, setResultUploadStatus] = useState("");
+  const [parsedResult, setParsedResult] = useState(null);
+  const [confirmResult, setConfirmResult] = useState(null);
+  const resultFileInputRef = useRef(null);
   const [uploadLoading, setUploadLoading] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const [uploadStatus, setUploadStatus] = useState("");
@@ -365,6 +372,70 @@ export default function App() {
   const clearCalibration = () => {
     setCalibration(null);
     localStorage.removeItem("ssm_calibration");
+  };
+
+  const uploadResultFiles = async (fileList) => {
+    setResultUploadLoading(true);
+    setResultUploadError("");
+    setResultUploadStatus("");
+    setParsedResult(null);
+    setConfirmResult(null);
+    try {
+      const files = Array.from(fileList);
+      const compressed = [];
+      for (let i = 0; i < files.length; i++) {
+        setResultUploadStatus(files.length > 1 ? `Compressing ${i + 1} of ${files.length}...` : "Compressing...");
+        const fileData = await compressImage(files[i]);
+        compressed.push({ fileData, fileType: "image/jpeg" });
+      }
+      setResultUploadStatus("Reading results...");
+      const r = await fetch("/api/parse-results", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ files: compressed }),
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || "Parse failed");
+      const parsed = data.result;
+      // Try to match against an existing pick in results log
+      const match = results.find(res =>
+        res.race?.toLowerCase() === parsed.race?.toLowerCase() &&
+        (res.date === parsed.date || !parsed.date)
+      );
+      const myPick = match?.pick || "";
+      const isWin = myPick && parsed.winner && myPick.toLowerCase().trim() === parsed.winner.toLowerCase().trim();
+      setParsedResult(parsed);
+      setConfirmResult({
+        race: parsed.race || "",
+        date: parsed.date || new Date().toLocaleDateString(),
+        pick: myPick,
+        result: isWin ? "WON" : myPick ? "MISS" : "WON",
+        price: isWin ? (parsed.winPayoff || "") : "",
+        grade: isWin ? "A" : myPick ? "C" : "A",
+        notes: [
+          parsed.winner ? `Winner: ${parsed.winner}` : "",
+          parsed.winPayoff ? `Win: $${parsed.winPayoff}` : "",
+          parsed.exactaPayoff ? `Exacta: $${parsed.exactaPayoff}` : "",
+          parsed.trifectaPayoff ? `Tri: $${parsed.trifectaPayoff}` : "",
+        ].filter(Boolean).join(" · "),
+      });
+    } catch (e) {
+      setResultUploadError(e.message);
+    } finally {
+      setResultUploadLoading(false);
+      setResultUploadStatus("");
+      if (resultFileInputRef.current) resultFileInputRef.current.value = "";
+    }
+  };
+
+  const saveConfirmedResult = async () => {
+    if (!confirmResult?.pick) return;
+    const full = { ...confirmResult, track: parsedResult?.track || raceInfo.track };
+    const { entry } = await API.addResult(full);
+    setResults(r => [entry, ...r]);
+    setParsedResult(null);
+    setConfirmResult(null);
+    setResultsSubTab("log");
   };
 
   const addFlag = async () => {
@@ -725,6 +796,20 @@ export default function App() {
         {tab === "results" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
+            {/* Sub-tabs */}
+            <div style={{ display: "flex", background: "#111118", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 10, padding: 4, gap: 2 }}>
+              {[{ id: "log", label: "Race Log" }, { id: "upload", label: "↑ Upload Result" }].map(t => (
+                <button key={t.id} onClick={() => { setResultsSubTab(t.id); setParsedResult(null); setConfirmResult(null); setResultUploadError(""); }} style={{
+                  flex: 1, padding: "8px 14px", fontSize: 12, fontWeight: 600, fontFamily: FONT,
+                  border: "none", borderRadius: 7, cursor: "pointer",
+                  background: resultsSubTab === t.id ? "#1C1C26" : "transparent",
+                  color: resultsSubTab === t.id ? "#f1f5f9" : "rgba(255,255,255,0.35)",
+                  boxShadow: resultsSubTab === t.id ? "0 1px 3px rgba(0,0,0,0.4)" : "none",
+                  transition: "all 0.15s",
+                }}>{t.label}</button>
+              ))}
+            </div>
+
             {/* Stats row */}
             {stats && (
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(140px,1fr))", gap: 12 }}>
@@ -744,7 +829,121 @@ export default function App() {
               </div>
             )}
 
-            {/* Results log */}
+            {/* ── UPLOAD RESULT SUB-TAB ── */}
+            {resultsSubTab === "upload" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                {/* Upload card */}
+                <div style={S.card}>
+                  <div style={S.label}>Upload Race Result Screenshot</div>
+                  <p style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginBottom: 16, lineHeight: 1.6 }}>
+                    Take a screenshot of the race result (Equibase, DRF, track app) and upload it. Claude will extract the winner, payoffs, and auto-match your pick.
+                  </p>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                    <button onClick={() => resultFileInputRef.current?.click()} disabled={resultUploadLoading}
+                      style={{ ...S.btn("#16c784", !resultUploadLoading), padding: "10px 20px", fontSize: 13, fontWeight: 700 }}>
+                      {resultUploadLoading ? `⟳ ${resultUploadStatus || "Processing..."}` : "↑ Upload Result Image"}
+                    </button>
+                    <span style={{ fontSize: 11, color: "rgba(255,255,255,0.25)" }}>JPG, PNG, multiple images OK</span>
+                    <input ref={resultFileInputRef} type="file" accept="image/*" multiple style={{ display: "none" }}
+                      onChange={e => { if (e.target.files?.length) uploadResultFiles(e.target.files); }} />
+                  </div>
+                  {resultUploadError && (
+                    <div style={{ marginTop: 12, background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.25)", borderRadius: 8, padding: "10px 14px", fontSize: 12, color: "#f87171" }}>
+                      {resultUploadError}
+                    </div>
+                  )}
+                </div>
+
+                {/* Parsed result preview */}
+                {parsedResult && (
+                  <div style={{ ...S.card, borderColor: "rgba(22,199,132,0.2)", background: "rgba(22,199,132,0.03)" }}>
+                    <div style={S.label}>Parsed Result</div>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(160px,1fr))", gap: 10, marginBottom: 16 }}>
+                      {[
+                        { label: "Track", value: parsedResult.track },
+                        { label: "Race", value: parsedResult.race },
+                        { label: "Date", value: parsedResult.date },
+                        { label: "Distance", value: `${parsedResult.distance || ""} ${parsedResult.surface || ""}`.trim() },
+                        { label: "Winner", value: parsedResult.winner, highlight: true },
+                        { label: "Place", value: parsedResult.place },
+                        { label: "Show", value: parsedResult.show },
+                        { label: "Win Payoff", value: parsedResult.winPayoff ? `$${parsedResult.winPayoff}` : null, highlight: true },
+                        { label: "Exacta", value: parsedResult.exactaPayoff ? `$${parsedResult.exactaPayoff}` : null },
+                        { label: "Trifecta", value: parsedResult.trifectaPayoff ? `$${parsedResult.trifectaPayoff}` : null },
+                      ].filter(f => f.value).map(f => (
+                        <div key={f.label} style={{ background: "#0D0D14", borderRadius: 8, padding: "10px 12px" }}>
+                          <div style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", marginBottom: 3, fontWeight: 500 }}>{f.label}</div>
+                          <div style={{ fontSize: 13, color: f.highlight ? "#16c784" : "#e5e7eb", fontWeight: f.highlight ? 700 : 500 }}>{f.value}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Confirm & Log form */}
+                {confirmResult && (
+                  <div style={{ ...S.card, borderColor: "rgba(96,165,250,0.2)" }}>
+                    <div style={S.label}>Confirm & Log Your Pick</div>
+                    {confirmResult.pick && (
+                      <div style={{ marginBottom: 14, padding: "10px 14px", borderRadius: 8, background: confirmResult.result === "WON" ? "rgba(22,199,132,0.08)" : "rgba(248,113,113,0.08)", border: `1px solid ${confirmResult.result === "WON" ? "rgba(22,199,132,0.25)" : "rgba(248,113,113,0.25)"}` }}>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: confirmResult.result === "WON" ? "#16c784" : "#f87171" }}>
+                          {confirmResult.result === "WON" ? "✓ Your pick matched!" : "✗ Pick did not match winner"}
+                        </span>
+                        <span style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", marginLeft: 10 }}>
+                          Pick: {confirmResult.pick} · Winner: {parsedResult?.winner}
+                        </span>
+                      </div>
+                    )}
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(140px,1fr))", gap: 10, marginBottom: 14 }}>
+                      {[
+                        { key: "race", label: "Race", ph: "R5" },
+                        { key: "date", label: "Date", ph: "5/8/2026" },
+                        { key: "pick", label: "Your Pick (WIN)", ph: "Horse name" },
+                        { key: "price", label: "Win Price", ph: "8.40" },
+                        { key: "notes", label: "Notes", ph: "Auto-filled" },
+                      ].map(f => (
+                        <div key={f.key}>
+                          <div style={S.fieldLabel}>{f.label}</div>
+                          <input value={confirmResult[f.key] || ""} onChange={e => setConfirmResult(p => ({ ...p, [f.key]: e.target.value }))}
+                            placeholder={f.ph} style={S.input} />
+                        </div>
+                      ))}
+                      <div>
+                        <div style={S.fieldLabel}>Result</div>
+                        <select value={confirmResult.result} onChange={e => setConfirmResult(p => ({ ...p, result: e.target.value }))}
+                          style={{ ...S.input, background: "#0D0D14" }}>
+                          <option>WON</option><option>BOARD</option><option>MISS</option>
+                        </select>
+                      </div>
+                      <div>
+                        <div style={S.fieldLabel}>Grade</div>
+                        <select value={confirmResult.grade} onChange={e => setConfirmResult(p => ({ ...p, grade: e.target.value }))}
+                          style={{ ...S.input, background: "#0D0D14" }}>
+                          {["A+","A","B+","B","C+","C","D"].map(g => <option key={g}>{g}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                      <button onClick={saveConfirmedResult} disabled={!confirmResult.pick}
+                        style={{ ...S.btn("#16c784", !!confirmResult.pick), padding: "10px 24px", fontSize: 13, fontWeight: 700 }}>
+                        Save & Log Result
+                      </button>
+                      <button onClick={() => { runLearn(); setResultsSubTab("log"); }}
+                        style={{ ...S.btn("#60a5fa"), padding: "10px 20px" }}>
+                        Save + Run Pattern Analysis
+                      </button>
+                      <button onClick={() => { setParsedResult(null); setConfirmResult(null); }}
+                        style={{ ...S.btn("rgba(255,255,255,0.2)"), padding: "10px 16px" }}>
+                        Reset
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── LOG SUB-TAB ── */}
+            {resultsSubTab === "log" && (
             <div style={S.card}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -809,7 +1008,7 @@ export default function App() {
                 {results.map(r => {
                   const isWin = r.result === "WON";
                   const isBoard = r.result === "BOARD";
-                  const rc = isWin ? "#00ff87" : isBoard ? "#60efff" : "#ff4757";
+                  const rc = isWin ? "#16c784" : isBoard ? "#60a5fa" : "#f87171";
                   const gc = GRADE_COLORS[r.grade] || "rgba(255,255,255,0.5)";
                   return (
                     <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap",
@@ -830,6 +1029,7 @@ export default function App() {
                 })}
               </div>
             </div>
+            )}
           </div>
         )}
 
