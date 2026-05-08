@@ -151,6 +151,14 @@ export default function App() {
   const [confirmResult, setConfirmResult] = useState(null);
   const resultFileInputRef = useRef(null);
 
+  // Equibase chart fetch
+  const [chartTrack,   setChartTrack]   = useState("SA");
+  const [chartDate,    setChartDate]    = useState(new Date().toLocaleDateString("en-US"));
+  const [chartRace,    setChartRace]    = useState("");
+  const [chartLoading, setChartLoading] = useState(false);
+  const [chartError,   setChartError]   = useState("");
+  const [chartUrl,     setChartUrl]     = useState("");
+
   useEffect(() => {
     API.getFlags().then(d => setFlags(d.flags || [])).catch(() => {});
     API.getResults().then(d => { setResults(d.results || []); setStats(d.stats); }).catch(() => {});
@@ -339,6 +347,44 @@ export default function App() {
     } finally {
       setResultUploadLoading(false); setResultUploadStatus("");
       if (resultFileInputRef.current) resultFileInputRef.current.value = "";
+    }
+  };
+
+  const fetchChart = async () => {
+    if (!chartTrack || !chartDate || !chartRace) { setChartError("Enter track, date, and race number."); return; }
+    setChartLoading(true); setChartError(""); setChartUrl(""); setParsedResult(null); setConfirmResult(null);
+    try {
+      const r = await fetch("/api/fetch-chart", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ track: chartTrack, date: chartDate, race: chartRace }),
+      });
+      const data = await r.json();
+      if (!r.ok) { setChartError(data.error || "Fetch failed"); return; }
+      setChartUrl(data.chartUrl || "");
+      const parsed = data.result;
+      const match = results.find(res =>
+        res.race?.toLowerCase() === parsed.race?.toLowerCase() && (res.date === parsed.date || !parsed.date)
+      );
+      const myPick = match?.pick || "";
+      const isWin  = myPick && parsed.winner && myPick.toLowerCase().trim() === parsed.winner.toLowerCase().trim();
+      setParsedResult(parsed);
+      setConfirmResult({
+        race: parsed.race || "", date: parsed.date || chartDate,
+        pick: myPick, result: isWin ? "WON" : myPick ? "MISS" : "WON",
+        price: isWin ? (parsed.winPayoff || "") : "",
+        grade: isWin ? "A" : myPick ? "C" : "A",
+        notes: [
+          parsed.winner     ? `Winner: ${parsed.winner}`           : "",
+          parsed.winPayoff  ? `Win: $${parsed.winPayoff}`          : "",
+          parsed.exactaPayoff   ? `Exacta: $${parsed.exactaPayoff}`    : "",
+          parsed.trifectaPayoff ? `Tri: $${parsed.trifectaPayoff}`     : "",
+        ].filter(Boolean).join(" · "),
+      });
+    } catch (e) {
+      setChartError(e.message);
+    } finally {
+      setChartLoading(false);
     }
   };
 
@@ -789,6 +835,52 @@ export default function App() {
                   {resultUploadError && (
                     <div className="mt-3 bg-red-400/[0.07] border border-red-400/20 rounded-lg px-3 py-2.5 text-xs text-red-400">
                       {resultUploadError}
+                    </div>
+                  )}
+                </div>
+
+                {/* Equibase Auto-Fetch */}
+                <div className={CARD}>
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className={LABEL}>Fetch from Equibase</div>
+                    <span className="text-[9px] font-semibold text-[#16c784] bg-[#16c784]/[0.08] border border-[#16c784]/20 px-2 py-0.5 rounded -mt-1.5">Auto</span>
+                  </div>
+                  <p className="text-xs text-slate-500 mb-4 leading-relaxed">
+                    Pulls the official result chart directly from Equibase — no screenshot needed. Charts post ~40 min after the race.
+                  </p>
+                  <div className="flex items-end gap-2 flex-wrap">
+                    <div className="flex flex-col gap-1.5">
+                      <label className={LABEL}>Track</label>
+                      <input value={chartTrack} onChange={e => setChartTrack(e.target.value.toUpperCase())}
+                        placeholder="SA" maxLength={4}
+                        className={cn(INPUT, "w-16 uppercase")} />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label className={LABEL}>Date</label>
+                      <input value={chartDate} onChange={e => setChartDate(e.target.value)}
+                        placeholder="5/8/2026"
+                        className={cn(INPUT, "w-28")} />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label className={LABEL}>Race #</label>
+                      <input value={chartRace} onChange={e => setChartRace(e.target.value.replace(/\D/g, ""))}
+                        placeholder="1"
+                        className={cn(INPUT, "w-16")} />
+                    </div>
+                    <Ghost color="green" disabled={chartLoading || !chartTrack || !chartDate || !chartRace}
+                      onClick={fetchChart}
+                      className="mb-0.5">
+                      {chartLoading ? "⟳ Fetching…" : "⚡ Fetch Chart"}
+                    </Ghost>
+                  </div>
+                  {chartUrl && !chartError && (
+                    <div className="mt-3 text-[10px] text-slate-600 font-mono truncate">
+                      {chartUrl}
+                    </div>
+                  )}
+                  {chartError && (
+                    <div className="mt-3 bg-red-400/[0.07] border border-red-400/20 rounded-lg px-3 py-2.5 text-xs text-red-400 leading-relaxed">
+                      {chartError}
                     </div>
                   )}
                 </div>
