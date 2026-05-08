@@ -240,7 +240,7 @@ Run the complete SSM Elite v3.3 pipeline starting with Step 0 surface verificati
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-4-6",
         max_tokens: 4000,
         system: SSM_SYSTEM_PROMPT,
         messages: [{ role: "user", content: userPrompt }],
