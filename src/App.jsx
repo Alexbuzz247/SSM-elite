@@ -1,5 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf";
+import {
+  ResponsiveContainer, LineChart, Line, BarChart, Bar, Cell,
+  XAxis, YAxis, Tooltip, ReferenceLine, CartesianGrid,
+} from "recharts";
 pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.js";
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
@@ -136,6 +140,11 @@ export default function App() {
   const [learnLoading,  setLearnLoading]  = useState(false);
   const [learnData,     setLearnData]     = useState(null);
   const [learnSelected, setLearnSelected] = useState([]);
+
+  // Analytics (EDA)
+  const [analyticsData,    setAnalyticsData]    = useState(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  const [analyticsError,   setAnalyticsError]   = useState("");
 
   // DRF upload
   const [uploadLoading, setUploadLoading] = useState(false);
@@ -311,6 +320,25 @@ export default function App() {
 
   const clearCalibration = () => { setCalibration(null); localStorage.removeItem("ssm_calibration"); };
 
+  // ── NIST EDA Analytics ────────────────────────────────────────────────────────
+  const runAnalytics = async () => {
+    setAnalyticsLoading(true); setAnalyticsError("");
+    try {
+      const r = await fetch("/api/analytics", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ results: results.slice().reverse() }),
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || "Analytics failed");
+      setAnalyticsData(data);
+    } catch (e) {
+      setAnalyticsError(e.message);
+    } finally {
+      setAnalyticsLoading(false);
+    }
+  };
+
   // ── Upload result screenshot ─────────────────────────────────────────────────
   const uploadResultFiles = async (fileList) => {
     setResultUploadLoading(true); setResultUploadError(""); setResultUploadStatus(""); setParsedResult(null); setConfirmResult(null);
@@ -474,9 +502,10 @@ export default function App() {
         <div className="border-b border-white/[0.06]">
           <div className="flex">
             {[
-              { id: "analyze", label: "Analyze" },
-              { id: "flags",   label: flags.length ? `Flags (${flags.length})` : "Flags" },
-              { id: "results", label: "Results" },
+              { id: "analyze",   label: "Analyze" },
+              { id: "flags",     label: flags.length ? `Flags (${flags.length})` : "Flags" },
+              { id: "results",   label: "Results" },
+              { id: "analytics", label: "Analytics" },
             ].map(t => (
               <button
                 key={t.id}
@@ -1060,6 +1089,203 @@ export default function App() {
                   </div>
                 )}
               </div>
+            )}
+          </div>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════════
+            ANALYTICS TAB
+        ══════════════════════════════════════════════════════════════ */}
+        {tab === "analytics" && (
+          <div className="space-y-4">
+
+            {/* Header card */}
+            <div className={CARD}>
+              <div className="flex items-center justify-between flex-wrap gap-3 mb-2">
+                <div>
+                  <div className={LABEL}>NIST Exploratory Data Analysis</div>
+                  <p className="text-xs text-slate-500 leading-relaxed mt-1">
+                    p-control chart · grade breakdown · signal reliability · ROI analysis
+                  </p>
+                </div>
+                <Ghost color="green" disabled={analyticsLoading || results.length === 0} onClick={runAnalytics}>
+                  {analyticsLoading ? "⟳ Running…" : "⚡ Run EDA"}
+                </Ghost>
+              </div>
+              {analyticsError && (
+                <div className="mt-3 bg-red-400/[0.07] border border-red-400/20 rounded-lg px-3 py-2.5 text-xs text-red-400">
+                  {analyticsError}
+                </div>
+              )}
+              {results.length === 0 && (
+                <div className="mt-2 text-xs text-slate-600">Log at least one result to run EDA.</div>
+              )}
+            </div>
+
+            {analyticsData && (
+              <>
+                {/* ROI metrics */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {[
+                    { label: "ROI",       value: `${analyticsData.roi.roiPct >= 0 ? "+" : ""}${analyticsData.roi.roiPct}%`, color: analyticsData.roi.roiPct >= 0 ? "#16c784" : "#f87171" },
+                    { label: "Invested",  value: `$${analyticsData.roi.invested}`,   color: "#64748b" },
+                    { label: "Returned",  value: `$${analyticsData.roi.returned}`,   color: "#60a5fa" },
+                    { label: "Avg Win",   value: `$${analyticsData.roi.avgWinPrice}`, color: "#16c784" },
+                  ].map(m => (
+                    <div key={m.label} className={cn(SCARD, "text-center")}>
+                      <div className="text-xl font-bold tracking-tight mb-1" style={{ color: m.color }}>{m.value}</div>
+                      <div className="text-[9px] text-slate-600 font-medium uppercase tracking-wider">{m.label}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Trend + summary */}
+                {analyticsData.summary && (
+                  <div className={CARD}>
+                    <div className="flex items-center gap-2 flex-wrap mb-2">
+                      <div className={LABEL}>Analysis</div>
+                      <span className={cn(
+                        "text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-wide",
+                        analyticsData.trend === "improving" ? "bg-[#16c784]/15 text-[#16c784]" :
+                        analyticsData.trend === "declining" ? "bg-red-400/15 text-red-400" :
+                        "bg-amber-400/15 text-amber-400"
+                      )}>
+                        {analyticsData.trend}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-300 leading-relaxed mb-1">{analyticsData.summary}</p>
+                    {analyticsData.trendReason && (
+                      <p className="text-xs text-slate-500 leading-relaxed">{analyticsData.trendReason}</p>
+                    )}
+                  </div>
+                )}
+
+                {/* p-Control Chart */}
+                {analyticsData.controlChart?.length > 1 && (
+                  <div className={CARD}>
+                    <div className={LABEL}>Win Rate Control Chart (p-chart)</div>
+                    <p className="text-[10px] text-slate-600 mb-3">Dashed red lines = ±3σ control limits (UCL/LCL)</p>
+                    <ResponsiveContainer width="100%" height={220}>
+                      <LineChart data={analyticsData.controlChart} margin={{ top: 8, right: 12, left: -20, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+                        <XAxis dataKey="race" tick={{ fontSize: 9, fill: "#475569" }} label={{ value: "Race #", position: "insideBottomRight", offset: -4, fontSize: 9, fill: "#475569" }} />
+                        <YAxis domain={[0, 100]} tick={{ fontSize: 9, fill: "#475569" }} unit="%" />
+                        <Tooltip
+                          contentStyle={{ background: "#111115", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, fontSize: 11 }}
+                          labelFormatter={v => `Race ${v}`}
+                          formatter={(value, name) => [
+                            `${value}%`,
+                            name === "winRate" ? "Win Rate" : name === "ucl" ? "UCL" : "LCL",
+                          ]}
+                        />
+                        <ReferenceLine
+                          y={analyticsData.controlChart[analyticsData.controlChart.length - 1]?.ucl}
+                          stroke="#f87171" strokeDasharray="5 3" strokeOpacity={0.55}
+                        />
+                        <ReferenceLine
+                          y={analyticsData.controlChart[analyticsData.controlChart.length - 1]?.lcl}
+                          stroke="#f87171" strokeDasharray="5 3" strokeOpacity={0.55}
+                        />
+                        <Line type="monotone" dataKey="winRate" stroke="#16c784" strokeWidth={2} dot={{ fill: "#16c784", r: 3 }} activeDot={{ r: 5 }} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                    {analyticsData.lagAnalysis && (
+                      <p className="text-[10px] text-slate-600 mt-2">{analyticsData.lagAnalysis}</p>
+                    )}
+                  </div>
+                )}
+
+                {/* By Grade + By Race Type */}
+                <div className="grid sm:grid-cols-2 gap-4">
+                  {analyticsData.byGrade?.length > 0 && (
+                    <div className={CARD}>
+                      <div className={LABEL}>Win Rate by Grade</div>
+                      <ResponsiveContainer width="100%" height={180}>
+                        <BarChart data={analyticsData.byGrade} margin={{ top: 4, right: 8, left: -24, bottom: 0 }}>
+                          <XAxis dataKey="grade" tick={{ fontSize: 10, fill: "#475569" }} />
+                          <YAxis domain={[0, 100]} tick={{ fontSize: 9, fill: "#475569" }} unit="%" />
+                          <Tooltip
+                            contentStyle={{ background: "#111115", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, fontSize: 11 }}
+                            formatter={(value, _name, props) => [`${value}% (${props.payload.wins}/${props.payload.total})`, "Win Rate"]}
+                          />
+                          <Bar dataKey="winRate" radius={[4, 4, 0, 0]}>
+                            {analyticsData.byGrade.map((entry, i) => (
+                              <Cell key={i} fill={GRADE_COLOR[entry.grade] || "#64748b"} fillOpacity={0.8} />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
+
+                  {analyticsData.byRaceType?.length > 0 && (
+                    <div className={CARD}>
+                      <div className={LABEL}>Win Rate by Race Type</div>
+                      <ResponsiveContainer width="100%" height={180}>
+                        <BarChart data={analyticsData.byRaceType} margin={{ top: 4, right: 8, left: -24, bottom: 0 }}>
+                          <XAxis dataKey="type" tick={{ fontSize: 9, fill: "#475569" }} />
+                          <YAxis domain={[0, 100]} tick={{ fontSize: 9, fill: "#475569" }} unit="%" />
+                          <Tooltip
+                            contentStyle={{ background: "#111115", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, fontSize: 11 }}
+                            formatter={(value, _name, props) => [`${value}% (${props.payload.wins}/${props.payload.total})`, "Win Rate"]}
+                          />
+                          <Bar dataKey="winRate" fill="#60a5fa" fillOpacity={0.8} radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
+                </div>
+
+                {/* Signal reliability */}
+                {analyticsData.signals?.length > 0 && (
+                  <div className={CARD}>
+                    <div className={LABEL}>Signal Reliability</div>
+                    <ResponsiveContainer width="100%" height={Math.max(120, analyticsData.signals.length * 40)}>
+                      <BarChart data={analyticsData.signals} layout="vertical" margin={{ top: 4, right: 48, left: 4, bottom: 0 }}>
+                        <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 9, fill: "#475569" }} unit="%" />
+                        <YAxis type="category" dataKey="signal" tick={{ fontSize: 9, fill: "#94a3b8" }} width={84} />
+                        <Tooltip
+                          contentStyle={{ background: "#111115", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, fontSize: 11 }}
+                          formatter={(value, _name, props) => [`${value}% (${props.payload.wins}/${props.payload.total})`, "Win Rate"]}
+                        />
+                        <Bar dataKey="winRate" fill="#a78bfa" fillOpacity={0.8} radius={[0, 4, 4, 0]}>
+                          {analyticsData.signals.map((entry, i) => (
+                            <Cell key={i} fill={entry.winRate >= 70 ? "#16c784" : entry.winRate >= 40 ? "#a78bfa" : "#f87171"} fillOpacity={0.8} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+
+                {/* Key findings + recommendations */}
+                {analyticsData.keyFindings?.length > 0 && (
+                  <div className={CARD}>
+                    <div className={LABEL}>Key Findings</div>
+                    <div className="space-y-2 mb-4">
+                      {analyticsData.keyFindings.map((f, i) => (
+                        <div key={i} className="flex items-start gap-2 text-xs text-slate-300">
+                          <span className="text-[#16c784] shrink-0 font-bold mt-0.5">→</span>
+                          <span>{f}</span>
+                        </div>
+                      ))}
+                    </div>
+                    {analyticsData.recommendations?.length > 0 && (
+                      <>
+                        <div className="text-[9px] text-slate-600 uppercase tracking-widest mb-2 font-semibold">Recommendations</div>
+                        <div className="space-y-2">
+                          {analyticsData.recommendations.map((r, i) => (
+                            <div key={i} className="flex items-start gap-2 text-xs text-blue-300">
+                              <span className="shrink-0 font-bold mt-0.5">↗</span>
+                              <span>{r}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}
