@@ -523,11 +523,16 @@ export default function App() {
                       {uploadLoading && (
                         <span className="text-[10px] text-blue-400 font-medium animate-pulse">{uploadStatus || "Parsing…"}</span>
                       )}
-                      <Ghost color="blue" disabled={uploadLoading} onClick={() => fileInputRef.current?.click()}>
+                      <label className={cn(
+                        "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors border cursor-pointer select-none",
+                        "border-blue-400/25 text-blue-400 bg-blue-400/[0.08] hover:bg-blue-400/[0.15]",
+                        uploadLoading && "opacity-40 cursor-not-allowed pointer-events-none"
+                      )}>
                         ↑ Upload Data Sheet
-                      </Ghost>
-                      <input ref={fileInputRef} type="file" accept=".pdf,image/*,.txt,.csv" className="hidden" multiple
-                        onChange={e => { if (e.target.files?.length) uploadDRF(e.target.files); }} />
+                        <input ref={fileInputRef} type="file" accept=".pdf,image/*,.txt,.csv" className="hidden" multiple
+                          disabled={uploadLoading}
+                          onChange={e => { if (e.target.files?.length) uploadDRF(e.target.files); }} />
+                      </label>
                     </div>
                   </div>
                   <p className="text-xs text-slate-600 mb-3 leading-relaxed">
@@ -769,12 +774,17 @@ export default function App() {
                     Screenshot any result (Equibase, DRF, track app). Claude extracts the winner and payoffs and auto-matches your pick from the log.
                   </p>
                   <div className="flex items-center gap-3 flex-wrap">
-                    <Ghost color="green" disabled={resultUploadLoading} onClick={() => resultFileInputRef.current?.click()}>
+                    <label className={cn(
+                      "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors border cursor-pointer select-none",
+                      "border-[#16c784]/25 text-[#16c784] bg-[#16c784]/[0.08] hover:bg-[#16c784]/[0.15]",
+                      resultUploadLoading && "opacity-40 cursor-not-allowed pointer-events-none"
+                    )}>
                       {resultUploadLoading ? `⟳ ${resultUploadStatus || "Processing…"}` : "↑ Upload Result Image"}
-                    </Ghost>
+                      <input ref={resultFileInputRef} type="file" accept="image/*" multiple className="hidden"
+                        disabled={resultUploadLoading}
+                        onChange={e => { if (e.target.files?.length) uploadResultFiles(e.target.files); }} />
+                    </label>
                     <span className="text-[10px] text-slate-600">JPG, PNG, multiple OK</span>
-                    <input ref={resultFileInputRef} type="file" accept="image/*" multiple className="hidden"
-                      onChange={e => { if (e.target.files?.length) uploadResultFiles(e.target.files); }} />
                   </div>
                   {resultUploadError && (
                     <div className="mt-3 bg-red-400/[0.07] border border-red-400/20 rounded-lg px-3 py-2.5 text-xs text-red-400">
