@@ -738,12 +738,13 @@ export default function App() {
                         <span className="text-[10px] text-blue-400 font-medium animate-pulse">{uploadStatus || "Parsing…"}</span>
                       )}
                       <label className={cn(
-                        "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors border cursor-pointer select-none",
+                        "relative inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors border cursor-pointer select-none overflow-hidden",
                         "border-blue-400/25 text-blue-400 bg-blue-400/[0.08] hover:bg-blue-400/[0.15]",
                         uploadLoading && "opacity-40 cursor-not-allowed pointer-events-none"
                       )}>
                         ↑ Upload Data Sheet
-                        <input ref={fileInputRef} type="file" accept=".pdf,image/*,.txt,.csv" className="hidden" multiple
+                        <input ref={fileInputRef} type="file" accept=".pdf,image/*,.txt,.csv" multiple
+                          className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
                           onChange={e => { if (!uploadLoading && e.target.files?.length) uploadDRF(e.target.files); }} />
                       </label>
                     </div>
@@ -1057,12 +1058,13 @@ export default function App() {
                   </p>
                   <div className="flex items-center gap-3 flex-wrap">
                     <label className={cn(
-                      "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors border cursor-pointer select-none",
+                      "relative inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors border cursor-pointer select-none overflow-hidden",
                       "border-[#16c784]/25 text-[#16c784] bg-[#16c784]/[0.08] hover:bg-[#16c784]/[0.15]",
                       resultUploadLoading && "opacity-40 cursor-not-allowed pointer-events-none"
                     )}>
                       {resultUploadLoading ? `⟳ ${resultUploadStatus || "Processing…"}` : "↑ Upload Result Image"}
-                      <input ref={resultFileInputRef} type="file" accept="image/*" multiple className="hidden"
+                      <input ref={resultFileInputRef} type="file" accept="image/*" multiple
+                        className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
                         onChange={e => { if (!resultUploadLoading && e.target.files?.length) uploadResultFiles(e.target.files); }} />
                     </label>
                     <span className="text-[10px] text-slate-600">JPG, PNG, multiple OK</span>
