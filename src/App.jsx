@@ -62,8 +62,11 @@ const API = {
   getFlags:   async () => { const r = await fetch("/api/flags"); return r.json(); },
   addFlag:    async (flag) => { const r = await fetch("/api/flags", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(flag) }); return r.json(); },
   removeFlag: async (id) => { await fetch(`/api/flags?id=${id}`, { method: "DELETE" }); },
-  getResults: async () => { const r = await fetch("/api/results"); return r.json(); },
-  addResult:  async (result) => { const r = await fetch("/api/results", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(result) }); return r.json(); },
+  getResults:     async () => { const r = await fetch("/api/results"); return r.json(); },
+  addResult:      async (result) => { const r = await fetch("/api/results", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(result) }); return r.json(); },
+  getPending:     async () => { const r = await fetch("/api/pending"); return r.json(); },
+  dismissPending: async (id) => { await fetch(`/api/pending?id=${id}`, { method: "DELETE" }); },
+  fetchToday:     async (track, date) => { const r = await fetch("/api/cron-fetch", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ track, date }) }); return r.json(); },
 };
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
@@ -97,6 +100,88 @@ function Ghost({ color = "green", disabled = false, onClick, children, className
     >
       {children}
     </button>
+  );
+}
+
+// ─── PENDING CARD ─────────────────────────────────────────────────────────────
+
+function PendingCard({ item, onConfirm, onDismiss }) {
+  const [pick,   setPick]   = useState(item._pick || "");
+  const [result, setResult] = useState(item._isWin ? "WON" : item._pick ? "MISS" : "WON");
+  const [price,  setPrice]  = useState(item._isWin ? (item.winPayoff || "") : "");
+  const [grade,  setGrade]  = useState(item._isWin ? "A" : item._pick ? "C" : "A");
+
+  return (
+    <div className="bg-[#111115] border border-white/[0.06] rounded-xl p-4">
+      {/* Header */}
+      <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-bold text-slate-100">{item.track} {item.race}</span>
+          <span className="text-[10px] text-slate-500">{item.date}</span>
+          {item.distance && <span className="text-[10px] text-slate-600">{item.distance} {item.surface || ""}</span>}
+        </div>
+        <span className="text-[9px] text-slate-700 font-mono">{new Date(item.fetchedAt).toLocaleTimeString()}</span>
+      </div>
+
+      {/* Result data */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
+        {[
+          { label: "Winner",   value: item.winner,   hi: true },
+          { label: "Win Pay",  value: item.winPayoff  ? `$${item.winPayoff}`  : null, hi: true },
+          { label: "Exacta",   value: item.exactaPayoff   ? `$${item.exactaPayoff}`   : null },
+          { label: "Trifecta", value: item.trifectaPayoff ? `$${item.trifectaPayoff}` : null },
+        ].filter(f => f.value).map(f => (
+          <div key={f.label} className="bg-[#0c0c10] rounded-lg px-3 py-2">
+            <div className="text-[9px] text-slate-600 font-medium uppercase tracking-wide mb-0.5">{f.label}</div>
+            <div className={cn("text-xs font-semibold", f.hi ? "text-[#16c784]" : "text-slate-300")}>{f.value}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Pick match status */}
+      {item._pick && (
+        <div className={cn(
+          "mb-3 px-3 py-2 rounded-lg flex items-center gap-2 text-xs flex-wrap",
+          item._isWin ? "bg-[#16c784]/[0.06] border border-[#16c784]/20" : "bg-red-400/[0.06] border border-red-400/20"
+        )}>
+          <span className={cn("font-bold", item._isWin ? "text-[#16c784]" : "text-red-400")}>
+            {item._isWin ? "✓ Pick matched!" : "✗ Did not match"}
+          </span>
+          <span className="text-slate-500">Pick: {item._pick}</span>
+        </div>
+      )}
+
+      {/* Editable fields */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
+        <div>
+          <label className={LABEL}>Your Pick</label>
+          <input value={pick} onChange={e => setPick(e.target.value)} placeholder="Horse name" className={INPUT} />
+        </div>
+        <div>
+          <label className={LABEL}>Result</label>
+          <select value={result} onChange={e => setResult(e.target.value)} className={INPUT}>
+            <option>WON</option><option>BOARD</option><option>MISS</option>
+          </select>
+        </div>
+        <div>
+          <label className={LABEL}>Win Price</label>
+          <input value={price} onChange={e => setPrice(e.target.value)} placeholder={item.winPayoff || "0"} className={INPUT} />
+        </div>
+        <div>
+          <label className={LABEL}>Grade</label>
+          <select value={grade} onChange={e => setGrade(e.target.value)} className={INPUT}>
+            {["A+","A","B+","B","C+","C","D"].map(g => <option key={g}>{g}</option>)}
+          </select>
+        </div>
+      </div>
+
+      <div className="flex gap-2 flex-wrap">
+        <Ghost color="green" disabled={!pick} onClick={() => onConfirm(item, { pick, result, price: Number(price) || 0, grade })}>
+          ✓ Confirm & Log
+        </Ghost>
+        <Ghost color="muted" onClick={() => onDismiss(item.id)}>Dismiss</Ghost>
+      </div>
+    </div>
   );
 }
 
@@ -146,6 +231,13 @@ export default function App() {
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [analyticsError,   setAnalyticsError]   = useState("");
 
+  // Pending queue
+  const [pending,        setPending]        = useState([]);
+  const [pendingLoading, setPendingLoading] = useState(false);
+  const [pendingError,   setPendingError]   = useState("");
+  const [fetchTrack,     setFetchTrack]     = useState("SA");
+  const [fetchDate,      setFetchDate]      = useState(new Date().toLocaleDateString("en-US"));
+
   // DRF upload
   const [uploadLoading, setUploadLoading] = useState(false);
   const [uploadError,   setUploadError]   = useState("");
@@ -171,6 +263,7 @@ export default function App() {
   useEffect(() => {
     API.getFlags().then(d => setFlags(d.flags || [])).catch(() => {});
     API.getResults().then(d => { setResults(d.results || []); setStats(d.stats); }).catch(() => {});
+    API.getPending().then(d => setPending(d.pending || [])).catch(() => {});
   }, []);
 
   const flagsText = flags.map(f => `${f.horse} — ${f.flag} +${f.bonus}PP (${f.trip})`).join("\n");
@@ -337,6 +430,52 @@ export default function App() {
     } finally {
       setAnalyticsLoading(false);
     }
+  };
+
+  // ── Pending queue ─────────────────────────────────────────────────────────────
+  const fetchToday = async () => {
+    if (!fetchTrack || !fetchDate) return;
+    setPendingLoading(true); setPendingError("");
+    try {
+      const data = await API.fetchToday(fetchTrack, fetchDate);
+      if (data.error) throw new Error(data.error);
+      // Reload the pending list from KV
+      const fresh = await API.getPending();
+      setPending(fresh.pending || []);
+    } catch (e) {
+      setPendingError(e.message);
+    } finally {
+      setPendingLoading(false);
+    }
+  };
+
+  const dismissPending = async (id) => {
+    await API.dismissPending(id);
+    setPending(p => p.filter(x => x.id !== id));
+  };
+
+  const confirmPending = async (item, overrides = {}) => {
+    const myPick = overrides.pick !== undefined ? overrides.pick : item._pick || "";
+    const isWin  = myPick && item.winner && myPick.toLowerCase().trim() === item.winner.toLowerCase().trim();
+    const entry  = {
+      date:   item.date  || fetchDate,
+      track:  item.track || fetchTrack,
+      race:   item.race  || "",
+      pick:   myPick,
+      result: overrides.result || (isWin ? "WON" : myPick ? "MISS" : "WON"),
+      price:  overrides.price  !== undefined ? overrides.price : isWin ? (item.winPayoff || 0) : 0,
+      grade:  overrides.grade  || (isWin ? "A" : myPick ? "C" : "A"),
+      notes:  [
+        item.winner    ? `Winner: ${item.winner}`            : "",
+        item.winPayoff ? `Win: $${item.winPayoff}`           : "",
+        item.exactaPayoff   ? `Exacta: $${item.exactaPayoff}`   : "",
+        item.trifectaPayoff ? `Tri: $${item.trifectaPayoff}`    : "",
+      ].filter(Boolean).join(" · "),
+    };
+    const { entry: saved } = await API.addResult(entry);
+    setResults(r => [saved, ...r]);
+    await API.dismissPending(item.id);
+    setPending(p => p.filter(x => x.id !== item.id));
   };
 
   // ── Upload result screenshot ─────────────────────────────────────────────────
@@ -828,17 +967,86 @@ export default function App() {
 
             {/* Sub-nav */}
             <div className="flex gap-1 bg-[#111115] border border-white/[0.06] rounded-xl p-1">
-              {[{ id: "log", label: "Race Log" }, { id: "upload", label: "↑ Upload Result" }].map(t => (
+              {[
+                { id: "log",     label: "Race Log" },
+                { id: "pending", label: pending.length ? `Pending (${pending.length})` : "Pending" },
+                { id: "upload",  label: "↑ Upload" },
+              ].map(t => (
                 <button key={t.id}
                   onClick={() => { setResultsSubTab(t.id); setParsedResult(null); setConfirmResult(null); setResultUploadError(""); }}
                   className={cn(
                     "flex-1 py-2 text-xs font-semibold rounded-lg transition-colors",
-                    resultsSubTab === t.id ? "bg-[#1a1a22] text-slate-100 shadow-sm" : "text-slate-500 hover:text-slate-300"
+                    resultsSubTab === t.id ? "bg-[#1a1a22] text-slate-100 shadow-sm" : "text-slate-500 hover:text-slate-300",
+                    t.id === "pending" && pending.length > 0 && resultsSubTab !== "pending" ? "text-amber-400" : ""
                   )}>
                   {t.label}
                 </button>
               ))}
             </div>
+
+            {/* ── PENDING QUEUE ── */}
+            {resultsSubTab === "pending" && (
+              <div className="space-y-4">
+                {/* Manual fetch controls */}
+                <div className={CARD}>
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className={LABEL}>Auto-Fetch Today's Charts</div>
+                    <span className="text-[9px] font-semibold text-amber-400 bg-amber-400/[0.08] border border-amber-400/20 px-2 py-0.5 rounded -mt-1.5">Cron 7:30 PM PT</span>
+                  </div>
+                  <p className="text-xs text-slate-500 mb-4 leading-relaxed">
+                    Automatically fetches all result charts for a given track and date. The cron runs daily at 7:30 PM PT — or trigger manually here.
+                  </p>
+                  <div className="flex items-end gap-2 flex-wrap">
+                    <div className="flex flex-col gap-1.5">
+                      <label className={LABEL}>Track</label>
+                      <input value={fetchTrack} onChange={e => setFetchTrack(e.target.value.toUpperCase())}
+                        placeholder="SA" maxLength={4}
+                        className={cn(INPUT, "w-16 uppercase")} />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label className={LABEL}>Date</label>
+                      <input value={fetchDate} onChange={e => setFetchDate(e.target.value)}
+                        placeholder="5/8/2026"
+                        className={cn(INPUT, "w-28")} />
+                    </div>
+                    <Ghost color="amber" disabled={pendingLoading || !fetchTrack || !fetchDate} onClick={fetchToday}>
+                      {pendingLoading ? "⟳ Fetching…" : "⚡ Fetch All Races"}
+                    </Ghost>
+                  </div>
+                  {pendingError && (
+                    <div className="mt-3 bg-red-400/[0.07] border border-red-400/20 rounded-lg px-3 py-2.5 text-xs text-red-400 leading-relaxed">
+                      {pendingError}
+                    </div>
+                  )}
+                </div>
+
+                {/* Pending items */}
+                {pending.length === 0 ? (
+                  <div className="text-sm text-slate-600 py-10 text-center">
+                    No pending results — cron will fetch at 7:30 PM PT, or trigger manually above.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {[...pending].reverse().map(item => {
+                      const myPick = results.find(r =>
+                        r.race?.toLowerCase() === item.race?.toLowerCase() &&
+                        (r.date === item.date || !item.date)
+                      )?.pick || "";
+                      const isWin = myPick && item.winner &&
+                        myPick.toLowerCase().trim() === item.winner.toLowerCase().trim();
+                      return (
+                        <PendingCard
+                          key={item.id}
+                          item={{ ...item, _pick: myPick, _isWin: isWin }}
+                          onConfirm={confirmPending}
+                          onDismiss={dismissPending}
+                        />
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* ── UPLOAD RESULT ── */}
             {resultsSubTab === "upload" && (
