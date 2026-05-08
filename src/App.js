@@ -32,11 +32,11 @@ const RACE_TYPES = [
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 
 const API = {
-  upload: async (fileData, fileType) => {
+  upload: async (files) => {
     const r = await fetch("/api/parse", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ fileData, fileType }),
+      body: JSON.stringify({ files }),
     });
     if (!r.ok) {
       const text = await r.text();
@@ -237,43 +237,61 @@ export default function App() {
     });
   }, []);
 
-  const uploadDRF = useCallback(async (file) => {
+  const uploadDRF = useCallback(async (fileList) => {
     setUploadLoading(true);
     setUploadError("");
     setUploadStatus("");
 
     try {
-      if (file.type === "application/pdf") {
-        const arrayBuffer = await file.arrayBuffer();
-        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-        const totalPages = pdf.numPages;
-        const allParsed = [];
+      const files = Array.from(fileList);
+      const allParsed = [];
 
-        for (let i = 1; i <= totalPages; i++) {
-          setUploadStatus(`Parsing page ${i} / ${totalPages}...`);
-          const page = await pdf.getPage(i);
-          const base64 = await pdfPageToBase64(page);
-          const { parsed } = await API.upload(base64, "image/jpeg");
-          if (parsed.trim()) allParsed.push(parsed.trim());
+      // Separate PDFs from images/text
+      const pdfs = files.filter(f => f.type === "application/pdf");
+      const images = files.filter(f => f.type.startsWith("image/"));
+      const texts = files.filter(f => !f.type.startsWith("image/") && f.type !== "application/pdf");
+
+      // Process all images in one API call
+      if (images.length > 0) {
+        const compressed = [];
+        for (let i = 0; i < images.length; i++) {
+          if (images[i].size > 20 * 1024 * 1024) { setUploadError("File too large (max 20MB each)."); return; }
+          setUploadStatus(images.length > 1 ? `Compressing ${i + 1} of ${images.length}...` : "Compressing...");
+          const fileData = await compressImage(images[i]);
+          compressed.push({ fileData, fileType: "image/jpeg" });
         }
+        setUploadStatus(images.length > 1 ? `Parsing ${images.length} images...` : "Parsing...");
+        const { parsed } = await API.upload(compressed);
+        if (parsed.trim()) allParsed.push(parsed.trim());
+      }
 
+      // Process PDFs page by page
+      for (const pdf of pdfs) {
+        const arrayBuffer = await pdf.arrayBuffer();
+        const doc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        const totalPages = doc.numPages;
+        const pages = [];
+        for (let i = 1; i <= totalPages; i++) {
+          setUploadStatus(`Rendering PDF page ${i} / ${totalPages}...`);
+          const page = await doc.getPage(i);
+          const base64 = await pdfPageToBase64(page);
+          pages.push({ fileData: base64, fileType: "image/jpeg" });
+        }
+        setUploadStatus("Parsing PDF...");
+        const { parsed } = await API.upload(pages);
+        if (parsed.trim()) allParsed.push(parsed.trim());
+      }
+
+      // Process text/csv files
+      for (const tf of texts) {
+        const text = await tf.text();
+        const { parsed } = await API.upload([{ fileData: btoa(unescape(encodeURIComponent(text))), fileType: "text/plain" }]);
+        if (parsed.trim()) allParsed.push(parsed.trim());
+      }
+
+      if (allParsed.length > 0) {
         const combined = allParsed.join("\n\n");
         const { updatedRaceInfo, horsesData } = parseUploadResult(combined);
-        setRaceInfo(prev => ({
-          ...prev,
-          ...Object.fromEntries(Object.entries(updatedRaceInfo).filter(([, v]) => v)),
-        }));
-        setHorsesText(horsesData);
-      } else {
-        if (file.size > 20 * 1024 * 1024) {
-          setUploadError("File too large (max 20MB).");
-          return;
-        }
-        setUploadStatus("Compressing...");
-        const fileData = await compressImage(file);
-        setUploadStatus("Parsing...");
-        const { parsed } = await API.upload(fileData, "image/jpeg");
-        const { updatedRaceInfo, horsesData } = parseUploadResult(parsed);
         setRaceInfo(prev => ({
           ...prev,
           ...Object.fromEntries(Object.entries(updatedRaceInfo).filter(([, v]) => v)),
@@ -469,7 +487,8 @@ export default function App() {
                         type="file"
                         accept=".pdf,image/*,.txt,.csv"
                         style={{ display: "none" }}
-                        onChange={e => { if (e.target.files?.[0]) uploadDRF(e.target.files[0]); }}
+                        multiple
+                        onChange={e => { if (e.target.files?.length) uploadDRF(e.target.files); }}
                       />
                     </div>
                   </div>

@@ -43,51 +43,41 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "ANTHROPIC_API_KEY not configured" });
   }
 
-  const { fileData, fileType } = req.body;
-  if (!fileData || !fileType) {
-    return res.status(400).json({ error: "fileData and fileType are required" });
+  const { files } = req.body;
+  if (!files || !Array.isArray(files) || files.length === 0) {
+    return res.status(400).json({ error: "files array is required" });
   }
 
   try {
-    let messages;
+    const contentBlocks = [];
 
-    if (fileType === "application/pdf") {
-      messages = [{
-        role: "user",
-        content: [
-          {
-            type: "document",
-            source: { type: "base64", media_type: "application/pdf", data: fileData },
-          },
-          { type: "text", text: PARSE_PROMPT },
-        ],
-      }];
-    } else if (fileType.startsWith("image/")) {
-      messages = [{
-        role: "user",
-        content: [
-          {
-            type: "image",
-            source: { type: "base64", media_type: fileType, data: fileData },
-          },
-          { type: "text", text: PARSE_PROMPT },
-        ],
-      }];
-    } else {
-      // Plain text or CSV — decode and send as text
-      const text = Buffer.from(fileData, "base64").toString("utf-8");
-      messages = [{
-        role: "user",
-        content: `${PARSE_PROMPT}\n\nDRF DATA:\n\n${text}`,
-      }];
+    for (const { fileData, fileType } of files) {
+      if (!fileData || !fileType) continue;
+      if (fileType === "application/pdf") {
+        contentBlocks.push({ type: "document", source: { type: "base64", media_type: "application/pdf", data: fileData } });
+      } else if (fileType.startsWith("image/")) {
+        contentBlocks.push({ type: "image", source: { type: "base64", media_type: fileType, data: fileData } });
+      } else {
+        const text = Buffer.from(fileData, "base64").toString("utf-8");
+        contentBlocks.push({ type: "text", text: `DATA:\n${text}` });
+      }
     }
 
+    if (contentBlocks.length === 0) {
+      return res.status(400).json({ error: "No valid files provided" });
+    }
+
+    contentBlocks.push({ type: "text", text: PARSE_PROMPT });
+
+    const messages = [{ role: "user", content: contentBlocks }];
+
+    const hasPdf = files.some(f => f.fileType === "application/pdf");
     const apiHeaders = {
       "Content-Type": "application/json",
       "x-api-key": apiKey,
       "anthropic-version": "2023-06-01",
     };
-    if (fileType === "application/pdf") {
+    if (hasPdf) {
       apiHeaders["anthropic-beta"] = "pdfs-2024-09-25";
     }
 
