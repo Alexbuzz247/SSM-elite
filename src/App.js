@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
 
@@ -30,6 +30,15 @@ const RACE_TYPES = [
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 
 const API = {
+  upload: async (fileData, fileType) => {
+    const r = await fetch("/api/upload", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fileData, fileType }),
+    });
+    if (!r.ok) throw new Error((await r.json()).error || "Upload failed");
+    return r.json();
+  },
   analyze: async (body) => {
     const r = await fetch("/api/analyze", {
       method: "POST",
@@ -146,6 +155,9 @@ export default function App() {
   const [newFlag, setNewFlag] = useState({ horse: "", race: "", trip: "", flag: "RED", bonus: 8 });
   const [newResult, setNewResult] = useState({ pick: "", result: "WON", price: "", grade: "A", notes: "", race: "", date: "" });
   const [logOpen, setLogOpen] = useState(false);
+  const [uploadLoading, setUploadLoading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     API.getFlags().then(d => setFlags(d.flags || [])).catch(() => {});
@@ -153,6 +165,68 @@ export default function App() {
   }, []);
 
   const flagsText = flags.map(f => `${f.horse} — ${f.flag} +${f.bonus}PP (${f.trip})`).join("\n");
+
+  const parseUploadResult = useCallback((parsed) => {
+    const infoMatch = parsed.match(/RACE_INFO:\s*([\s\S]*?)(?=\n\n#|\n#1 )/);
+    let updatedRaceInfo = {};
+    let horsesData = parsed;
+
+    if (infoMatch) {
+      const block = infoMatch[1];
+      const get = (field) => {
+        const m = block.match(new RegExp(`${field}:\\s*([^\n]+)`));
+        const v = m?.[1]?.trim();
+        return v && !/^n\/a$/i.test(v) ? v : "";
+      };
+      const surface = get("Surface");
+      const raceType = get("Race Type");
+      updatedRaceInfo = {
+        track: get("Track"),
+        raceNum: get("Race").replace(/\D/g, ""),
+        date: get("Date"),
+        distance: get("Distance"),
+        surface: SURFACES.includes(surface) ? surface : "",
+        raceType: RACE_TYPES.some(t => t.value === raceType) ? raceType : "",
+        purse: get("Purse").replace(/\D/g, ""),
+        fieldSize: get("Field Size"),
+      };
+      horsesData = parsed.replace(/RACE_INFO:[\s\S]*?\n\n(?=#)/, "").trim();
+    }
+
+    return { updatedRaceInfo, horsesData };
+  }, []);
+
+  const uploadDRF = useCallback(async (file) => {
+    const MAX_MB = 8;
+    if (file.size > MAX_MB * 1024 * 1024) {
+      setUploadError(`File too large (max ${MAX_MB}MB). Try a screenshot or smaller PDF.`);
+      return;
+    }
+    setUploadLoading(true);
+    setUploadError("");
+    try {
+      const fileData = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result.split(",")[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      const { parsed } = await API.upload(fileData, file.type);
+      const { updatedRaceInfo, horsesData } = parseUploadResult(parsed);
+
+      setRaceInfo(prev => ({
+        ...prev,
+        ...Object.fromEntries(Object.entries(updatedRaceInfo).filter(([, v]) => v)),
+      }));
+      setHorsesText(horsesData);
+    } catch (e) {
+      setUploadError(e.message);
+    } finally {
+      setUploadLoading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }, [parseUploadResult]);
 
   const runAnalysis = async () => {
     if (!horsesText.trim()) { setError("Please enter horse/PP data."); return; }
@@ -314,10 +388,36 @@ export default function App() {
 
                 {/* Horse data */}
                 <div style={S.card}>
-                  <div style={S.label}>▸ Horse / PP Data</div>
-                  <div style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", marginBottom: 10, lineHeight: 1.5 }}>
-                    Paste anything — raw DRF text, manual notes, Beyers, trainer/jockey, works, trip notes. More data = better analysis.
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: 12 }}>
+                    <div style={S.label}>▸ Horse / PP Data</div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      {uploadLoading && (
+                        <span style={{ fontSize: 10, color: "#60efff", letterSpacing: "0.1em" }}>⟳ PARSING DRF...</span>
+                      )}
+                      <button
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={uploadLoading}
+                        style={{ ...S.btn("#60efff", !uploadLoading), padding: "6px 14px", fontSize: 10 }}
+                      >
+                        ↑ Upload DRF Sheet
+                      </button>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept=".pdf,image/*,.txt,.csv"
+                        style={{ display: "none" }}
+                        onChange={e => { if (e.target.files?.[0]) uploadDRF(e.target.files[0]); }}
+                      />
+                    </div>
                   </div>
+                  <div style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", marginBottom: 10, lineHeight: 1.5 }}>
+                    Upload a DRF PDF or screenshot to auto-fill, or paste raw data below. More data = better analysis.
+                  </div>
+                  {uploadError && (
+                    <div style={{ background: "rgba(255,71,87,0.1)", border: "1px solid rgba(255,71,87,0.3)", borderRadius: 4, padding: "8px 12px", fontSize: 11, color: "#ff4757", marginBottom: 10 }}>
+                      {uploadError}
+                    </div>
+                  )}
                   <textarea value={horsesText} onChange={e => setHorsesText(e.target.value)}
                     placeholder={`#1 Lord Bullingdon — Trainer: McCarthy M, Jockey: Kimura K\nBest Beyers: 95, 86, 82, 80\nLast race: Won going away, no trip\nWorks: Apr29 SA 5f :482 H (4 days out)\n\n#2 Pioneer Prince — Trainer: O'Neill, Jockey: Maldonado\nBest Beyers: 87, 82, 82\nLast race: Drew away safely 1⅛M turf\n...`}
                     style={{ ...S.input, minHeight: 260, resize: "vertical", lineHeight: 1.6 }} />
