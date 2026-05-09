@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(az --version 2>$null)",
+      "PowerShell(if \\($LASTEXITCODE -ne 0\\) { \"Azure CLI not found\" } else { \"Azure CLI already installed\" })",
+      "PowerShell(winget install --id Microsoft.AzureCLI --silent --accept-package-agreements --accept-source-agreements)",
+      "PowerShell(az login)",
+      "PowerShell($env:PATH = [System.Environment]::GetEnvironmentVariable\\(\"PATH\", \"Machine\"\\) + \";\" + [System.Environment]::GetEnvironmentVariable\\(\"PATH\", \"User\"\\); az login)",
+      "Bash(git push *)",
+      "PowerShell($env:PATH = [System.Environment]::GetEnvironmentVariable\\(\"PATH\", \"Machine\"\\) + \";\" + [System.Environment]::GetEnvironmentVariable\\(\"PATH\", \"User\"\\); Set-Location \"c:\\\\Users\\\\alort\\\\SSM-elite\"; vercel ls 2>&1 | Select-Object -First 20)",
+      "PowerShell($env:PATH = [System.Environment]::GetEnvironmentVariable\\(\"PATH\", \"Machine\"\\) + \";\" + [System.Environment]::GetEnvironmentVariable\\(\"PATH\", \"User\"\\); Set-Location \"c:\\\\Users\\\\alort\\\\SSM-elite\"; vercel ls --scope alexbuzz247s-projects 2>&1)",
+      "PowerShell($env:PATH = [System.Environment]::GetEnvironmentVariable\\(\"PATH\",\"Machine\"\\) + \";\" + [System.Environment]::GetEnvironmentVariable\\(\"PATH\",\"User\"\\); vercel logs ssm-elite.vercel.app --limit 20 2>&1)",
+      "PowerShell($env:PATH = [System.Environment]::GetEnvironmentVariable\\(\"PATH\",\"Machine\"\\) + \";\" + [System.Environment]::GetEnvironmentVariable\\(\"PATH\",\"User\"\\); vercel inspect ssm-elite.vercel.app 2>&1)",
+      "PowerShell(Invoke-RestMethod -Uri \"https://ssm-elite.vercel.app/api/parse\" -Method POST -ContentType \"application/json\" -Body '{\"files\":[]}' 2>&1)",
+      "PowerShell($env:PATH = [System.Environment]::GetEnvironmentVariable\\(\"PATH\",\"Machine\"\\) + \";\" + [System.Environment]::GetEnvironmentVariable\\(\"PATH\",\"User\"\\); Set-Location \"c:\\\\Users\\\\alort\\\\SSM-elite\"; vercel --prod --yes 2>&1)"
+    ]
+  }
+}
